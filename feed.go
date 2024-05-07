@@ -16,7 +16,6 @@ import (
 	"math"
 	"os"
 	opath "path"
-	"runtime"
 	"sort"
 	"unicode"
 )
@@ -253,44 +252,34 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if e == nil {
 		e = feed.parseFeedInfos(path)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseLevels(path, prefix)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseStops(path, prefix, geofilteredStops)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.reserveShapes(path, prefix)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseShapes(path, prefix)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseRoutes(path, prefix, filteredRoutes)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseCalendar(path, prefix)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseCalendarDates(path, prefix)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseTrips(path, prefix, filteredRoutes, filteredTrips)
 	}
 
-	runtime.GC()
 	if e == nil {
 		e = feed.reserveStopTimes(path, prefix, filteredTrips)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseStopTimes(path, prefix, geofilteredStops, filteredTrips)
 	}
@@ -304,31 +293,24 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 			}
 		}
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseFareAttributes(path, prefix)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseFareAttributeRules(path, prefix, filteredRoutes)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseFrequencies(path, prefix, filteredTrips)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseTransfers(path, prefix, geofilteredStops, filteredRoutes)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parsePathways(path, prefix, geofilteredStops)
 	}
-	runtime.GC()
 	if e == nil {
 		e = feed.parseAttributions(path, prefix, filteredRoutes, filteredTrips)
 	}
-	runtime.GC()
 	// if e == nil {
 	// e = feed.parseTranslations(path, prefix)
 	// }
@@ -347,8 +329,6 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if !feed.opts.DateFilterStart.IsEmpty() || !feed.opts.DateFilterEnd.IsEmpty() {
 		feed.filterServices(prefix)
 	}
-
-	runtime.GC()
 
 	return e
 }
@@ -1028,9 +1008,6 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 	i := 0
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
-		if i%10000000 == 0 {
-			runtime.GC()
-		}
 		i += 1
 
 		shape, sp, e := createShapePoint(record, flds, feed, prefix)
@@ -1185,12 +1162,9 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 	i := 0
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
-		if i%10000000 == 0 {
-			runtime.GC()
-		}
 		i += 1
 
-		trip, st, e := createStopTime(record, flds, feed, prefix)
+		trip, stopTimeSeq, e := createStopTime(record, &flds, feed, prefix)
 
 		if e != nil {
 			wasFiltered := false
@@ -1223,7 +1197,7 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 						feed.StopTimesAddFlds[reader.header[i]][trip.Id] = make(map[int]string)
 					}
 
-					feed.StopTimesAddFlds[reader.header[i]][trip.Id][st.Sequence()] = record[i]
+					feed.StopTimesAddFlds[reader.header[i]][trip.Id][stopTimeSeq] = record[i]
 				}
 			}
 		}

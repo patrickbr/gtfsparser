@@ -681,12 +681,12 @@ func createTranslation(r []string, flds TranslationFields, feed *Feed, prefix st
 	}()
 
 	tr := new(gtfs.Translation)
-	tr.FieldName = getString(flds.fieldName, r, flds, true, true, "")
-	tr.Translation = getString(flds.translation, r, flds, true, true, "")
-	tr.FieldValue = getString(flds.fieldValue, r, flds, false, false, "")
-	tr.Language = getIsoLangCode(flds.language, r, flds, false, false, feed)
+	tr.FieldName = getString(flds.fieldName, r, flds.FldName(flds.fieldName), true, true, "")
+	tr.Translation = getString(flds.translation, r, flds.FldName(flds.translation), true, true, "")
+	tr.FieldValue = getString(flds.fieldValue, r, flds.FldName(flds.fieldValue), false, false, "")
+	tr.Language = getIsoLangCode(flds.language, r, flds.FldName(flds.language), false, false, feed)
 
-	tableName := getString(flds.tableName, r, flds, true, true, "")
+	tableName := getString(flds.tableName, r, flds.FldName(flds.tableName), true, true, "")
 
 	if !feed.opts.DryRun && !(tableName == "agency" || tableName == "stops" || tableName == "routes" || tableName == "trips" || tableName == "stop_times" || tableName == "feed_info" || tableName == "pathways" || tableName == "attributions" || tableName == "levels") {
 		panic(fmt.Errorf("table_name must be one of: 'agency', 'stops', 'routes', 'trips', 'stop_times', 'feed_info', 'pathways', 'attributions', 'levels' (found '%s')", tableName))
@@ -694,7 +694,7 @@ func createTranslation(r []string, flds TranslationFields, feed *Feed, prefix st
 
 	strings.Replace(strings.ToLower(tableName), ".txt", "", 1)
 
-	id := getString(flds.recordId, r, flds, false, false, "")
+	id := getString(flds.recordId, r, flds.FldName(flds.recordId), false, false, "")
 	// subId := getString(flds.recordSubId, r, flds, false, false, "")
 
 	if len(id) > 0 {
@@ -749,19 +749,19 @@ func createAttribution(r []string, flds AttributionFields, feed *Feed, prefix st
 
 	a := new(gtfs.Attribution)
 
-	a.Id = prefix + getString(flds.attributionId, r, flds, false, false, "")
-	a.Organization_name = getString(flds.organizationName, r, flds, true, true, feed.opts.EmptyStringRepl)
-	a.Is_producer = getBool(flds.isProducer, r, flds, false, false, feed.opts.UseDefValueOnError, feed)
-	a.Is_operator = getBool(flds.isOperator, r, flds, false, false, feed.opts.UseDefValueOnError, feed)
-	a.Is_authority = getBool(flds.isAuthority, r, flds, false, false, feed.opts.UseDefValueOnError, feed)
+	a.Id = prefix + getString(flds.attributionId, r, flds.FldName(flds.attributionId), false, false, "")
+	a.Organization_name = getString(flds.organizationName, r, flds.FldName(flds.organizationName), true, true, feed.opts.EmptyStringRepl)
+	a.Is_producer = getBool(flds.isProducer, r, flds.FldName(flds.isProducer), false, false, feed.opts.UseDefValueOnError, feed)
+	a.Is_operator = getBool(flds.isOperator, r, flds.FldName(flds.isOperator), false, false, feed.opts.UseDefValueOnError, feed)
+	a.Is_authority = getBool(flds.isAuthority, r, flds.FldName(flds.isAuthority), false, false, feed.opts.UseDefValueOnError, feed)
 
 	a.Url = getURL(flds.attributionUrl, r, flds, false, feed.opts.UseDefValueOnError, feed)
 	a.Email = getMail(flds.attributionEmail, r, flds, false, feed.opts.UseDefValueOnError, feed)
-	a.Phone = getString(flds.attributionPhone, r, flds, false, false, feed.opts.EmptyStringRepl)
+	a.Phone = getString(flds.attributionPhone, r, flds.FldName(flds.attributionPhone), false, false, feed.opts.EmptyStringRepl)
 
-	routeId := getString(flds.routeId, r, flds, false, false, "")
-	agencyId := getString(flds.agencyId, r, flds, false, false, "")
-	tripId := getString(flds.tripId, r, flds, false, false, "")
+	routeId := getString(flds.routeId, r, flds.FldName(flds.routeId), false, false, "")
+	agencyId := getString(flds.agencyId, r, flds.FldName(flds.agencyId), false, false, "")
+	tripId := getString(flds.tripId, r, flds.FldName(flds.tripId), false, false, "")
 
 	if (len(routeId) != 0 && len(agencyId) != 0) || (len(routeId) != 0 && len(tripId) != 0) || (len(tripId) != 0 && len(agencyId) != 0) {
 		return nil, nil, nil, nil, errors.New("Only one of route_id, agency_id or trip_id can be set!")
@@ -802,12 +802,12 @@ func createAgency(r []string, flds AgencyFields, feed *Feed, prefix string) (ag 
 	}()
 	a := new(gtfs.Agency)
 
-	a.Id = prefix + getString(flds.agencyId, r, flds, false, false, "")
-	a.Name = getString(flds.agencyName, r, flds, true, true, feed.opts.EmptyStringRepl)
+	a.Id = prefix + getString(flds.agencyId, r, flds.FldName(flds.agencyId), false, false, "")
+	a.Name = getString(flds.agencyName, r, flds.FldName(flds.agencyName), true, true, feed.opts.EmptyStringRepl)
 	a.Url = getURL(flds.agencyUrl, r, flds, true, feed.opts.UseDefValueOnError, feed)
 	a.Timezone = getTimezone(flds.agencyTimezone, r, flds, true, feed.opts.UseDefValueOnError, feed)
-	a.Lang = getIsoLangCode(flds.agencyLang, r, flds, false, feed.opts.UseDefValueOnError, feed)
-	a.Phone = getString(flds.agencyPhone, r, flds, false, false, "")
+	a.Lang = getIsoLangCode(flds.agencyLang, r, flds.FldName(flds.agencyTimezone), false, feed.opts.UseDefValueOnError, feed)
+	a.Phone = getString(flds.agencyPhone, r, flds.FldName(flds.agencyPhone), false, false, "")
 	a.Fare_url = getURL(flds.agencyFareUrl, r, flds, false, feed.opts.UseDefValueOnError, feed)
 	a.Email = getMail(flds.agencyEmail, r, flds, false, feed.opts.UseDefValueOnError, feed)
 
@@ -822,12 +822,12 @@ func createFeedInfo(r []string, flds FeedInfoFields, feed *Feed) (fi *gtfs.FeedI
 	}()
 	f := new(gtfs.FeedInfo)
 
-	f.Publisher_name = getString(flds.feedPublisherName, r, flds, true, true, feed.opts.EmptyStringRepl)
+	f.Publisher_name = getString(flds.feedPublisherName, r, flds.FldName(flds.feedPublisherName), true, true, feed.opts.EmptyStringRepl)
 	f.Publisher_url = getURL(flds.feedPublisherUrl, r, flds, true, feed.opts.UseDefValueOnError, feed)
-	f.Lang = getString(flds.feedLang, r, flds, true, true, feed.opts.EmptyStringRepl)
+	f.Lang = getString(flds.feedLang, r, flds.FldName(flds.feedLang), true, true, feed.opts.EmptyStringRepl)
 	f.Start_date = getDate(flds.feedStartDate, r, flds, false, feed.opts.UseDefValueOnError, feed)
 	f.End_date = getDate(flds.feedEndDate, r, flds, false, feed.opts.UseDefValueOnError, feed)
-	f.Version = getString(flds.feedVersion, r, flds, false, false, "")
+	f.Version = getString(flds.feedVersion, r, flds.FldName(flds.feedVersion), false, false, "")
 	f.Contact_email = getMail(flds.feedContactEmail, r, flds, false, feed.opts.UseDefValueOnError, feed)
 	f.Contact_url = getURL(flds.feedContactUrl, r, flds, false, feed.opts.UseDefValueOnError, feed)
 
@@ -843,7 +843,7 @@ func createFrequency(r []string, flds FrequencyFields, feed *Feed, prefix string
 	a := new(gtfs.Frequency)
 	var trip *gtfs.Trip
 
-	tripid := prefix + getString(flds.tripId, r, flds, true, true, "")
+	tripid := prefix + getString(flds.tripId, r, flds.FldName(flds.tripId), true, true, "")
 
 	if val, ok := feed.Trips[tripid]; ok {
 		trip = val
@@ -851,15 +851,15 @@ func createFrequency(r []string, flds FrequencyFields, feed *Feed, prefix string
 		panic(&TripNotFoundErr{prefix, r[flds.tripId]})
 	}
 
-	a.Exact_times = getBool(flds.exactTimes, r, flds, false, false, feed.opts.UseDefValueOnError, feed)
-	a.Start_time = getTime(flds.startTime, r, flds)
-	a.End_time = getTime(flds.endTime, r, flds)
+	a.Exact_times = getBool(flds.exactTimes, r, flds.FldName(flds.exactTimes), false, false, feed.opts.UseDefValueOnError, feed)
+	a.Start_time = getTime(flds.startTime, r, flds.FldName(flds.startTime))
+	a.End_time = getTime(flds.endTime, r, flds.FldName(flds.endTime))
 
 	if a.Start_time.SecondsSinceMidnight() > a.End_time.SecondsSinceMidnight() {
 		panic(errors.New("Frequency has start_time > end_time."))
 	}
 
-	a.Headway_secs = getPositiveInt(flds.headwaySecs, r, flds, true)
+	a.Headway_secs = getPositiveInt(flds.headwaySecs, r, flds.FldName(flds.headwaySecs), true)
 
 	if !feed.opts.DryRun {
 		if trip.Frequencies == nil {
@@ -879,9 +879,9 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 		}
 	}()
 	a := new(gtfs.Route)
-	a.Id = prefix + getString(flds.routeId, r, flds, true, true, "")
+	a.Id = prefix + getString(flds.routeId, r, flds.FldName(flds.routeId), true, true, "")
 
-	var aID = prefix + getString(flds.agencyId, r, flds, false, false, "")
+	var aID = prefix + getString(flds.agencyId, r, flds.FldName(flds.agencyId), false, false, "")
 
 	if len(aID) != len(prefix) {
 		if val, ok := feed.Agencies[aID]; ok {
@@ -891,10 +891,10 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 				if len(feed.Agencies) == 1 {
 					a.Agency = nil
 				} else {
-					return nil, errors.New("Agency with id " + getString(flds.agencyId, r, flds, false, false, "") + " not found or erroneous, cannot fall back to no agency as there is more than one agency in agency.txt.")
+					return nil, errors.New("Agency with id " + getString(flds.agencyId, r, flds.FldName(flds.agencyId), false, false, "") + " not found or erroneous, cannot fall back to no agency as there is more than one agency in agency.txt.")
 				}
 			} else {
-				return nil, errors.New("No agency with id " + getString(flds.agencyId, r, flds, false, false, "") + " found.")
+				return nil, errors.New("No agency with id " + getString(flds.agencyId, r, flds.FldName(flds.agencyId), false, false, "") + " found.")
 			}
 		}
 	} else if len(prefix) == 0 && len(feed.Agencies) == 1 {
@@ -923,8 +923,8 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 		return nil, errors.New("No agency given for route " + a.Id + ", an agency is required as there is more than one agency in agency.txt.")
 	}
 
-	a.Short_name = getString(flds.routeShortName, r, flds, false, false, "")
-	a.Long_name = getString(flds.routeLongName, r, flds, false, false, "")
+	a.Short_name = getString(flds.routeShortName, r, flds.FldName(flds.routeShortName), false, false, "")
+	a.Long_name = getString(flds.routeLongName, r, flds.FldName(flds.routeLongName), false, false, "")
 
 	if len(a.Short_name) == 0 && len(a.Long_name) == 0 {
 		if feed.opts.UseDefValueOnError {
@@ -938,14 +938,14 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 		a.Long_name = ""
 	}
 
-	a.Desc = getString(flds.routeDesc, r, flds, false, false, "")
-	a.Type = int16(getRangeInt(flds.routeType, r, flds, true, 0, 1702)) // allow extended route types
+	a.Desc = getString(flds.routeDesc, r, flds.FldName(flds.routeDesc), false, false, "")
+	a.Type = int16(getRangeInt(flds.routeType, r, flds.FldName(flds.routeType), true, 0, 1702)) // allow extended route types
 	a.Url = getURL(flds.routeUrl, r, flds, false, feed.opts.UseDefValueOnError, feed)
-	a.Color = getColor(flds.routeColor, r, flds, false, "ffffff", feed.opts.UseDefValueOnError, feed)
-	a.Text_color = getColor(flds.routeTextColor, r, flds, false, "000000", feed.opts.UseDefValueOnError, feed)
-	a.Sort_order = getPositiveIntWithDefault(flds.routeSortOrder, r, flds, -1, feed.opts.UseDefValueOnError, feed)
-	a.Continuous_pickup = int8(getRangeIntWithDefault(flds.continuousPickup, r, flds, 0, 3, 1, feed.opts.UseDefValueOnError, feed))
-	a.Continuous_drop_off = int8(getRangeIntWithDefault(flds.continuousDropOff, r, flds, 0, 3, 1, feed.opts.UseDefValueOnError, feed))
+	a.Color = getColor(flds.routeColor, r, flds.FldName(flds.routeColor), false, "ffffff", feed.opts.UseDefValueOnError, feed)
+	a.Text_color = getColor(flds.routeTextColor, r, flds.FldName(flds.routeTextColor), false, "000000", feed.opts.UseDefValueOnError, feed)
+	a.Sort_order = getPositiveIntWithDefault(flds.routeSortOrder, r, flds.FldName(flds.routeSortOrder), -1, feed.opts.UseDefValueOnError, feed)
+	a.Continuous_pickup = int8(getRangeIntWithDefault(flds.continuousPickup, r, flds.FldName(flds.routeSortOrder), 0, 3, 1, feed.opts.UseDefValueOnError, feed))
+	a.Continuous_drop_off = int8(getRangeIntWithDefault(flds.continuousDropOff, r, flds.FldName(flds.continuousDropOff), 0, 3, 1, feed.opts.UseDefValueOnError, feed))
 
 	return a, nil
 }
@@ -958,21 +958,21 @@ func createServiceFromCalendar(r []string, flds CalendarFields, feed *Feed, pref
 	}()
 
 	service := gtfs.EmptyService()
-	service.SetId(prefix + getString(flds.serviceId, r, flds, true, true, ""))
+	service.SetId(prefix + getString(flds.serviceId, r, flds.FldName(flds.serviceId), true, true, ""))
 
 	// fill daybitmap
-	service.SetDaymap(1, getBool(flds.monday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
-	service.SetDaymap(2, getBool(flds.tuesday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
-	service.SetDaymap(3, getBool(flds.wednesday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
-	service.SetDaymap(4, getBool(flds.thursday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
-	service.SetDaymap(5, getBool(flds.friday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
-	service.SetDaymap(6, getBool(flds.saturday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
-	service.SetDaymap(0, getBool(flds.sunday, r, flds, true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(1, getBool(flds.monday, r, flds.FldName(flds.monday), true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(2, getBool(flds.tuesday, r, flds.FldName(flds.tuesday), true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(3, getBool(flds.wednesday, r, flds.FldName(flds.wednesday), true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(4, getBool(flds.thursday, r, flds.FldName(flds.thursday), true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(5, getBool(flds.friday, r, flds.FldName(flds.friday), true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(6, getBool(flds.saturday, r, flds.FldName(flds.saturday), true, false, feed.opts.UseDefValueOnError, feed))
+	service.SetDaymap(0, getBool(flds.sunday, r, flds.FldName(flds.sunday), true, false, feed.opts.UseDefValueOnError, feed))
 	service.SetStart_date(getDate(flds.startDate, r, flds, true, false, feed))
 	service.SetEnd_date(getDate(flds.endDate, r, flds, true, false, feed))
 
 	if service.End_date().GetTime().Before(service.Start_date().GetTime()) {
-		return nil, errors.New("Service " + getString(flds.serviceId, r, flds, true, true, "") + " has end date before start date.")
+		return nil, errors.New("Service " + getString(flds.serviceId, r, flds.FldName(flds.serviceId), true, true, "") + " has end date before start date.")
 	}
 
 	return service, nil
@@ -988,22 +988,22 @@ func createServiceFromCalendarDates(r []string, flds CalendarDatesFields, feed *
 	var service *gtfs.Service
 
 	// first, check if the service already exists
-	if val, ok := feed.Services[prefix+getString(flds.serviceId, r, flds, true, true, "")]; ok {
+	if val, ok := feed.Services[prefix+getString(flds.serviceId, r, flds.FldName(flds.serviceId), true, true, "")]; ok {
 		service = val
 		update = true
 	} else {
 		service = gtfs.EmptyService()
-		service.SetId(prefix + getString(flds.serviceId, r, flds, true, true, ""))
+		service.SetId(prefix + getString(flds.serviceId, r, flds.FldName(flds.serviceId), true, true, ""))
 	}
 
 	// create exception
-	t := getRangeInt(flds.exceptionType, r, flds, true, 1, 2)
+	t := getRangeInt(flds.exceptionType, r, flds.FldName(flds.exceptionType), true, 1, 2)
 	date := getDate(flds.date, r, flds, true, false, feed)
 
 	// may be nil during dry run
 	if service != nil {
 		if _, ok := service.Exceptions()[date]; ok {
-			return nil, errors.New("Date exception for service id " + getString(flds.serviceId, r, flds, true, true, "") + " defined 2 times for one date.")
+			return nil, errors.New("Date exception for service id " + getString(flds.serviceId, r, flds.FldName(flds.serviceId), true, true, "") + " defined 2 times for one date.")
 		}
 		if (filterDateEnd.IsEmpty() || !date.GetTime().After(filterDateEnd.GetTime())) &&
 			(filterDateStart.IsEmpty() || !date.GetTime().Before(filterDateStart.GetTime())) {
@@ -1026,18 +1026,18 @@ func createStop(r []string, flds StopFields, feed *Feed, prefix string) (s *gtfs
 	a := new(gtfs.Stop)
 	parentId := ""
 
-	a.Id = prefix + getString(flds.stopId, r, flds, true, true, "")
-	a.Code = getString(flds.stopCode, r, flds, false, false, "")
-	a.Location_type = int8(getRangeIntWithDefault(flds.locationType, r, flds, 0, 4, 0, feed.opts.UseDefValueOnError, feed))
-	a.Name = getString(flds.stopName, r, flds, a.Location_type < 3, a.Location_type < 3, feed.opts.EmptyStringRepl)
-	a.Desc = getString(flds.stopDesc, r, flds, false, false, "")
+	a.Id = prefix + getString(flds.stopId, r, flds.FldName(flds.stopId), true, true, "")
+	a.Code = getString(flds.stopCode, r, flds.FldName(flds.stopCode), false, false, "")
+	a.Location_type = int8(getRangeIntWithDefault(flds.locationType, r, flds.FldName(flds.locationType), 0, 4, 0, feed.opts.UseDefValueOnError, feed))
+	a.Name = getString(flds.stopName, r, flds.FldName(flds.stopName), a.Location_type < 3, a.Location_type < 3, feed.opts.EmptyStringRepl)
+	a.Desc = getString(flds.stopDesc, r, flds.FldName(flds.stopDesc), false, false, "")
 
 	if a.Location_type < 3 {
-		a.Lat = getFloat(flds.stopLat, r, flds, true)
-		a.Lon = getFloat(flds.stopLon, r, flds, true)
+		a.Lat = getFloat(flds.stopLat, r, flds.FldName(flds.stopLat), true)
+		a.Lon = getFloat(flds.stopLon, r, flds.FldName(flds.stopLon), true)
 	} else {
-		lat := getNullableFloat(flds.stopLat, r, flds, feed.opts.UseDefValueOnError, feed)
-		lon := getNullableFloat(flds.stopLon, r, flds, feed.opts.UseDefValueOnError, feed)
+		lat := getNullableFloat(flds.stopLat, r, flds.FldName(flds.stopLat), feed.opts.UseDefValueOnError, feed)
+		lon := getNullableFloat(flds.stopLon, r, flds.FldName(flds.stopLon), feed.opts.UseDefValueOnError, feed)
 
 		if !math.IsNaN(float64(lat)) && !math.IsNaN(float64(lon)) {
 			a.Lat = lat
@@ -1080,7 +1080,7 @@ func createStop(r []string, flds StopFields, feed *Feed, prefix string) (s *gtfs
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
 	}
 
-	a.Zone_id = prefix + getString(flds.zoneId, r, flds, false, false, "")
+	a.Zone_id = prefix + getString(flds.zoneId, r, flds.FldName(flds.zoneId), false, false, "")
 	if len(a.Zone_id) == len(prefix) {
 		a.Zone_id = ""
 	}
@@ -1090,30 +1090,30 @@ func createStop(r []string, flds StopFields, feed *Feed, prefix string) (s *gtfs
 	a.Parent_station = nil
 
 	if a.Location_type > 1 {
-		parentId = prefix + getString(flds.parentStation, r, flds, true, true, "")
+		parentId = prefix + getString(flds.parentStation, r, flds.FldName(flds.parentStation), true, true, "")
 	} else if a.Location_type == 0 {
-		parentId = prefix + getString(flds.parentStation, r, flds, false, false, "")
+		parentId = prefix + getString(flds.parentStation, r, flds.FldName(flds.parentStation), false, false, "")
 	} else {
-		if len(getString(flds.parentStation, r, flds, false, false, "")) > 0 {
+		if len(getString(flds.parentStation, r, flds.FldName(flds.parentStation), false, false, "")) > 0 {
 			panic(fmt.Errorf("'parent_station' cannot be defined for location_type=1."))
 		}
 	}
 
 	a.Timezone = getTimezone(flds.stopTimezone, r, flds, false, feed.opts.UseDefValueOnError, feed)
-	a.Wheelchair_boarding = int8(getRangeIntWithDefault(flds.wheelchairBoarding, r, flds, 0, 2, 0, feed.opts.UseDefValueOnError, feed))
+	a.Wheelchair_boarding = int8(getRangeIntWithDefault(flds.wheelchairBoarding, r, flds.FldName(flds.wheelchairBoarding), 0, 2, 0, feed.opts.UseDefValueOnError, feed))
 	a.Level = nil
 
-	levelId := prefix + getString(flds.levelId, r, flds, false, false, "")
+	levelId := prefix + getString(flds.levelId, r, flds.FldName(flds.levelId), false, false, "")
 
 	if len(levelId) > len(prefix) {
 		if val, ok := feed.Levels[levelId]; ok {
 			a.Level = val
 		} else {
-			panic(errors.New("No level with id " + getString(flds.levelId, r, flds, false, true, "") + " found."))
+			panic(errors.New("No level with id " + getString(flds.levelId, r, flds.FldName(flds.levelId), false, true, "") + " found."))
 		}
 	}
 
-	a.Platform_code = getString(flds.platformCode, r, flds, false, false, "")
+	a.Platform_code = getString(flds.platformCode, r, flds.FldName(flds.platformCode), false, false, "")
 
 	return a, parentId, nil
 }
@@ -1126,20 +1126,20 @@ func reserveStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string)
 	}()
 	var trip *gtfs.Trip
 
-	if val, ok := feed.Trips[prefix+getString(flds.tripId, r, flds, true, true, "")]; ok {
+	if val, ok := feed.Trips[prefix+getString(flds.tripId, r, flds.FldName(flds.tripId), true, true, "")]; ok {
 		trip = val
 	} else {
-		panic(&TripNotFoundErr{prefix, getString(flds.tripId, r, flds, true, true, "")})
+		panic(&TripNotFoundErr{prefix, getString(flds.tripId, r, flds.FldName(flds.tripId), true, true, "")})
 	}
 
-	if _, ok := feed.Stops[prefix+getString(flds.stopId, r, flds, true, true, "")]; ok {
+	if _, ok := feed.Stops[prefix+getString(flds.stopId, r, flds.FldName(flds.stopId), true, true, "")]; ok {
 		trip.StopTimes[0].SetSequence(trip.StopTimes[0].Sequence() + 1)
 	}
 
 	return nil
 }
 
-func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) (t *gtfs.Trip, st *gtfs.StopTime, err error) {
+func createStopTime(r []string, flds *StopTimeFields, feed *Feed, prefix string) (t *gtfs.Trip, stopTimeSeq int, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -1149,7 +1149,7 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	a.SetHeadsign(&feed.emptyString)
 	var trip *gtfs.Trip
 
-	tripId := prefix + getString(flds.tripId, r, flds, true, true, "")
+	tripId := prefix + getString(flds.tripId, r, flds.FldName(flds.tripId), true, true, "")
 
 	if feed.lastTrip != nil && feed.lastTrip.Id == tripId {
 		trip = feed.lastTrip
@@ -1159,14 +1159,14 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 	}
 
 	if trip == nil {
-		panic(&TripNotFoundErr{prefix, getString(flds.tripId, r, flds, true, true, "")})
+		panic(&TripNotFoundErr{prefix, getString(flds.tripId, r, flds.FldName(flds.tripId), true, true, "")})
 	}
 
 	if !feed.opts.DateFilterStart.IsEmpty() || !feed.opts.DateFilterEnd.IsEmpty() {
 		// this trip will later be deleted - dont store stop times for it!
 		s := trip.Service
 		if (s.IsEmpty() && s.Start_date().IsEmpty() && s.End_date().IsEmpty()) || s.GetFirstActiveDate().IsEmpty() {
-			return trip, &a, nil
+			return trip, a.Sequence(), nil
 		}
 	}
 
@@ -1179,24 +1179,24 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 		}
 	}
 
-	if val, ok := feed.Stops[prefix+getString(flds.stopId, r, flds, true, true, "")]; ok {
+	if val, ok := feed.Stops[prefix+getString(flds.stopId, r, flds.FldName(flds.stopId), true, true, "")]; ok {
 		a.SetStop(val)
 	} else {
-		panic(&StopNotFoundErr{prefix, getString(flds.stopId, r, flds, true, true, "")})
+		panic(&StopNotFoundErr{prefix, getString(flds.stopId, r, flds.FldName(flds.stopId), true, true, "")})
 	}
 
 	if a.Stop().Location_type != 0 {
 		panic(errors.New("Stop " + a.Stop().Id + " (" + a.Stop().Name + ") has location_type != 0, cannot be used in stop_times.txt!"))
 	}
 
-	a.SetArrival_time(getTime(flds.arrivalTime, r, flds))
-	a.SetDeparture_time(getTime(flds.departureTime, r, flds))
+	a.SetArrival_time(getTime(flds.arrivalTime, r, flds.FldName(flds.arrivalTime)))
+	a.SetDeparture_time(getTime(flds.departureTime, r, flds.FldName(flds.departureTime)))
 
 	if a.Arrival_time().Empty() && !a.Departure_time().Empty() {
 		if feed.opts.UseDefValueOnError {
 			a.SetArrival_time(a.Departure_time())
 		} else {
-			panic(errors.New("Missing arrival time for " + getString(flds.stopId, r, flds, true, true, "") + "."))
+			panic(errors.New("Missing arrival time for " + getString(flds.stopId, r, flds.FldName(flds.stopId), true, true, "") + "."))
 		}
 	}
 
@@ -1204,32 +1204,32 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 		if feed.opts.UseDefValueOnError {
 			a.SetDeparture_time(a.Arrival_time())
 		} else {
-			panic(errors.New("Missing departure time for " + getString(flds.stopId, r, flds, true, true, "") + "."))
+			panic(errors.New("Missing departure time for " + getString(flds.stopId, r, flds.FldName(flds.stopId), true, true, "") + "."))
 		}
 	}
 
 	if a.Arrival_time().SecondsSinceMidnight() > a.Departure_time().SecondsSinceMidnight() {
-		panic(errors.New("Departure before arrival at stop " + getString(flds.stopId, r, flds, true, true, "") + "."))
+		panic(errors.New("Departure before arrival at stop " + getString(flds.stopId, r, flds.FldName(flds.stopId), true, true, "") + "."))
 	}
 
-	a.SetSequence(getRangeInt(flds.stopSequence, r, flds, true, 0, int(^uint32(0)>>1)))
-	headsign := getString(flds.stopHeadsign, r, flds, false, false, "")
+	a.SetSequence(getRangeInt(flds.stopSequence, r, flds.FldName(flds.stopSequence), true, 0, int(^uint32(0)>>1)))
 
-	// only store headsigns that are different to the default trip headsign
-	if len(headsign) > 0 && headsign != *trip.Headsign {
-		if *feed.lastString != headsign {
-			feed.lastString = &headsign
-		}
-		a.SetHeadsign(feed.lastString)
-	}
+	/*
+	* There used to be logic here to store a custom headsign,
+	* if different from the default trip headsign.
+	* However, this causes a massive amount of inescapable allocation (>25% of all allocations).
+	* The code was likely defunct anyways, as the flds.stopSequence ID is negative, and for fields that are
+	* not required getString simply returned an empty string anyways.
+	 */
+	a.SetHeadsign(trip.Headsign)
 
-	a.SetPickup_type(uint8(getRangeInt(flds.pickupType, r, flds, false, 0, 3)))
-	a.SetDrop_off_type(uint8(getRangeInt(flds.dropOffType, r, flds, false, 0, 3)))
-	a.SetContinuous_pickup(uint8(getRangeIntWithDefault(flds.continuousPickup, r, flds, 0, 3, 1, feed.opts.UseDefValueOnError, feed)))
-	a.SetContinuous_drop_off(uint8(getRangeIntWithDefault(flds.continuousDropOff, r, flds, 0, 3, 1, feed.opts.UseDefValueOnError, feed)))
-	dist := getNullableFloat(flds.shapeDistTraveled, r, flds, feed.opts.UseDefValueOnError, feed)
+	a.SetPickup_type(uint8(getRangeInt(flds.pickupType, r, flds.FldName(flds.pickupType), false, 0, 3)))
+	a.SetDrop_off_type(uint8(getRangeInt(flds.dropOffType, r, flds.FldName(flds.dropOffType), false, 0, 3)))
+	a.SetContinuous_pickup(uint8(getRangeIntWithDefault(flds.continuousPickup, r, flds.FldName(flds.continuousPickup), 0, 3, 1, feed.opts.UseDefValueOnError, feed)))
+	a.SetContinuous_drop_off(uint8(getRangeIntWithDefault(flds.continuousDropOff, r, flds.FldName(flds.continuousDropOff), 0, 3, 1, feed.opts.UseDefValueOnError, feed)))
+	dist := getNullableFloat(flds.shapeDistTraveled, r, flds.FldName(flds.shapeDistTraveled), feed.opts.UseDefValueOnError, feed)
 	a.SetShape_dist_traveled(dist)
-	a.SetTimepoint(getBool(flds.timepoint, r, flds, false, !a.Arrival_time().Empty() && !a.Departure_time().Empty(), feed.opts.UseDefValueOnError, feed))
+	a.SetTimepoint(getBool(flds.timepoint, r, flds.FldName(flds.timepoint), false, !a.Arrival_time().Empty() && !a.Departure_time().Empty(), feed.opts.UseDefValueOnError, feed))
 
 	if (a.Arrival_time().Empty() || a.Departure_time().Empty()) && a.Timepoint() {
 		locErr := errors.New("Stops with timepoint=1 cannot have empty arrival or departure time")
@@ -1244,7 +1244,7 @@ func createStopTime(r []string, flds StopTimeFields, feed *Feed, prefix string) 
 
 	trip.StopTimes = append(trip.StopTimes, a)
 
-	return trip, &a, nil
+	return trip, a.Sequence(), nil
 }
 
 func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs.Trip, err error) {
@@ -1254,18 +1254,18 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 		}
 	}()
 	a := new(gtfs.Trip)
-	a.Id = prefix + getString(flds.tripId, r, flds, true, true, "")
+	a.Id = prefix + getString(flds.tripId, r, flds.FldName(flds.tripId), true, true, "")
 
-	if val, ok := feed.Routes[prefix+getString(flds.routeId, r, flds, true, true, "")]; ok {
+	if val, ok := feed.Routes[prefix+getString(flds.routeId, r, flds.FldName(flds.routeId), true, true, "")]; ok {
 		a.Route = val
 	} else {
-		panic(&RouteNotFoundErr{prefix, getString(flds.routeId, r, flds, true, true, ""), getString(flds.tripId, r, flds, true, true, "")})
+		panic(&RouteNotFoundErr{prefix, getString(flds.routeId, r, flds.FldName(flds.routeId), true, true, ""), getString(flds.tripId, r, flds.FldName(flds.tripId), true, true, "")})
 	}
 
-	if val, ok := feed.Services[prefix+getString(flds.serviceId, r, flds, true, true, "")]; ok {
+	if val, ok := feed.Services[prefix+getString(flds.serviceId, r, flds.FldName(flds.serviceId), true, true, "")]; ok {
 		a.Service = val
 	} else {
-		panic(fmt.Errorf("No service with id %s found", getString(flds.serviceId, r, flds, true, true, "")))
+		panic(fmt.Errorf("No service with id %s found", getString(flds.serviceId, r, flds.FldName(flds.serviceId), true, true, "")))
 	}
 
 	toDel := false
@@ -1282,7 +1282,7 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 		return a, nil
 	}
 
-	headsign := getString(flds.tripHeadsign, r, flds, false, false, "")
+	headsign := getString(flds.tripHeadsign, r, flds.FldName(flds.tripHeadsign), false, false, "")
 
 	a.Headsign = &feed.emptyString
 
@@ -1293,18 +1293,18 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 		a.Headsign = feed.lastString
 	}
 
-	shortName := getString(flds.tripShortName, r, flds, false, false, "")
+	shortName := getString(flds.tripShortName, r, flds.FldName(flds.tripShortName), false, false, "")
 	if len(shortName) > 0 {
 		a.Short_name = &shortName
 	}
-	a.Direction_id = int8(getRangeIntWithDefault(flds.directionId, r, flds, 0, 1, -1, feed.opts.UseDefValueOnError, feed))
-	blockid := prefix + getString(flds.blockId, r, flds, false, false, "")
+	a.Direction_id = int8(getRangeIntWithDefault(flds.directionId, r, flds.FldName(flds.directionId), 0, 1, -1, feed.opts.UseDefValueOnError, feed))
+	blockid := prefix + getString(flds.blockId, r, flds.FldName(flds.blockId), false, false, "")
 	if len(blockid) != len(prefix) {
 		a.Block_id = &blockid
 	}
 
 	if !feed.opts.DropShapes {
-		shapeID := prefix + getString(flds.shapeId, r, flds, false, false, "")
+		shapeID := prefix + getString(flds.shapeId, r, flds.FldName(flds.shapeId), false, false, "")
 
 		if len(shapeID) > len(prefix) {
 			if val, ok := feed.Shapes[shapeID]; ok {
@@ -1323,8 +1323,8 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 		}
 	}
 
-	a.Wheelchair_accessible = int8(getRangeIntWithDefault(flds.wheelchairAccessible, r, flds, 0, 2, 0, feed.opts.UseDefValueOnError, feed))
-	a.Bikes_allowed = int8(getRangeIntWithDefault(flds.bikesAllowed, r, flds, 0, 2, 0, feed.opts.UseDefValueOnError, feed))
+	a.Wheelchair_accessible = int8(getRangeIntWithDefault(flds.wheelchairAccessible, r, flds.FldName(flds.wheelchairAccessible), 0, 2, 0, feed.opts.UseDefValueOnError, feed))
+	a.Bikes_allowed = int8(getRangeIntWithDefault(flds.bikesAllowed, r, flds.FldName(flds.bikesAllowed), 0, 2, 0, feed.opts.UseDefValueOnError, feed))
 
 	return a, nil
 }
@@ -1336,11 +1336,11 @@ func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) 
 		}
 	}()
 
-	shapeID := prefix + getString(flds.shapeId, r, flds, true, true, "")
+	shapeID := prefix + getString(flds.shapeId, r, flds.FldName(flds.shapeId), true, true, "")
 	var shape *gtfs.Shape
 
-	lat := getFloat(flds.shapePtLat, r, flds, true)
-	lon := getFloat(flds.shapePtLon, r, flds, true)
+	lat := getFloat(flds.shapePtLat, r, flds.FldName(flds.shapePtLat), true)
+	lon := getFloat(flds.shapePtLon, r, flds.FldName(flds.shapePtLon), true)
 
 	// check if any defined PolygonFilter contains the shape point
 	contains := true
@@ -1380,7 +1380,7 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 		}
 	}()
 
-	shapeID := prefix + getString(flds.shapeId, r, flds, true, true, "")
+	shapeID := prefix + getString(flds.shapeId, r, flds.FldName(flds.shapeId), true, true, "")
 	var shape *gtfs.Shape
 
 	if feed.lastShape != nil && feed.lastShape.Id == shapeID {
@@ -1395,10 +1395,10 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 		shape.Points = make(gtfs.ShapePoints, 0, shape.Points[0].Sequence)
 	}
 
-	dist := getNullableFloat(flds.shapeDistTraveled, r, flds, feed.opts.UseDefValueOnError, feed)
+	dist := getNullableFloat(flds.shapeDistTraveled, r, flds.FldName(flds.shapeDistTraveled), feed.opts.UseDefValueOnError, feed)
 
-	lat := getFloat(flds.shapePtLat, r, flds, true)
-	lon := getFloat(flds.shapePtLon, r, flds, true)
+	lat := getFloat(flds.shapePtLat, r, flds.FldName(flds.shapePtLat), true)
+	lon := getFloat(flds.shapePtLon, r, flds.FldName(flds.shapePtLon), true)
 
 	// check for incorrect coordinates
 	if math.Abs(float64(lat)) > 90 {
@@ -1431,7 +1431,7 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 	p := gtfs.ShapePoint{
 		Lat:           lat,
 		Lon:           lon,
-		Sequence:      uint32(getRangeInt(flds.shapePtSequence, r, flds, true, 0, int(^uint32(0)))),
+		Sequence:      uint32(getRangeInt(flds.shapePtSequence, r, flds.FldName(flds.shapePtSequence), true, 0, int(^uint32(0)))),
 		Dist_traveled: dist,
 	}
 
@@ -1449,18 +1449,18 @@ func createFareAttribute(r []string, flds FareAttributeFields, feed *Feed, prefi
 
 	a := new(gtfs.FareAttribute)
 
-	a.Id = prefix + getString(flds.fareId, r, flds, true, true, "")
-	a.Price = getString(flds.price, r, flds, false, false, "")
+	a.Id = prefix + getString(flds.fareId, r, flds.FldName(flds.fareId), true, true, "")
+	a.Price = getString(flds.price, r, flds.FldName(flds.price), false, false, "")
 	if feed.opts.UseDefValueOnError {
-		a.Currency_type = getString(flds.currencyType, r, flds, true, true, "XXX")
+		a.Currency_type = getString(flds.currencyType, r, flds.FldName(flds.currencyType), true, true, "XXX")
 	} else {
-		a.Currency_type = getString(flds.currencyType, r, flds, true, true, "")
+		a.Currency_type = getString(flds.currencyType, r, flds.FldName(flds.currencyType), true, true, "")
 	}
-	a.Payment_method = getRangeInt(flds.paymentMethod, r, flds, false, 0, 1)
-	a.Transfers = getRangeIntWithDefault(flds.transfers, r, flds, 0, 2, -1, feed.opts.UseDefValueOnError, feed)
-	a.Transfer_duration = getPositiveInt(flds.transferDuration, r, flds, false)
+	a.Payment_method = getRangeInt(flds.paymentMethod, r, flds.FldName(flds.paymentMethod), false, 0, 1)
+	a.Transfers = getRangeIntWithDefault(flds.transfers, r, flds.FldName(flds.transfers), 0, 2, -1, feed.opts.UseDefValueOnError, feed)
+	a.Transfer_duration = getPositiveInt(flds.transferDuration, r, flds.FldName(flds.transferDuration), false)
 
-	aID := prefix + getString(flds.agencyId, r, flds, false, false, "")
+	aID := prefix + getString(flds.agencyId, r, flds.FldName(flds.agencyId), false, false, "")
 
 	if len(aID) != len(prefix) {
 		if val, ok := feed.Agencies[aID]; ok {
@@ -1469,7 +1469,7 @@ func createFareAttribute(r []string, flds FareAttributeFields, feed *Feed, prefi
 			if feed.opts.UseDefValueOnError {
 				a.Agency = nil
 			} else {
-				return nil, errors.New("No agency with id " + getString(flds.agencyId, r, flds, false, false, "") + " found.")
+				return nil, errors.New("No agency with id " + getString(flds.agencyId, r, flds.FldName(flds.agencyId), false, false, "") + " found.")
 			}
 		}
 	} else {
@@ -1507,7 +1507,7 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) 
 	var fareattr *gtfs.FareAttribute
 	var fareid string
 
-	fareid = prefix + getString(flds.fareId, r, flds, true, true, "")
+	fareid = prefix + getString(flds.fareId, r, flds.FldName(flds.fareId), true, true, "")
 
 	// first, check if the service already exists
 	if val, ok := feed.FareAttributes[fareid]; ok {
@@ -1519,7 +1519,7 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) 
 	// create fare attribute
 	rule := new(gtfs.FareAttributeRule)
 
-	routeID := prefix + getString(flds.routeId, r, flds, false, false, "")
+	routeID := prefix + getString(flds.routeId, r, flds.FldName(flds.routeId), false, false, "")
 
 	if len(routeID) > len(prefix) {
 		if val, ok := feed.Routes[routeID]; ok {
@@ -1529,9 +1529,9 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) 
 		}
 	}
 
-	rule.Origin_id = prefix + getString(flds.originId, r, flds, false, false, "")
-	rule.Destination_id = prefix + getString(flds.destinationId, r, flds, false, false, "")
-	rule.Contains_id = prefix + getString(flds.containsId, r, flds, false, false, "")
+	rule.Origin_id = prefix + getString(flds.originId, r, flds.FldName(flds.originId), false, false, "")
+	rule.Destination_id = prefix + getString(flds.destinationId, r, flds.FldName(flds.destinationId), false, false, "")
+	rule.Contains_id = prefix + getString(flds.containsId, r, flds.FldName(flds.containsId), false, false, "")
 
 	fareattr.Rules = append(fareattr.Rules, rule)
 
@@ -1545,14 +1545,14 @@ func createTransfer(r []string, flds TransferFields, feed *Feed, prefix string) 
 		}
 	}()
 
-	from_sid := getString(flds.FromStopId, r, flds, false, false, "")
-	to_sid := getString(flds.ToStopId, r, flds, false, false, "")
+	from_sid := getString(flds.FromStopId, r, flds.FldName(flds.FromStopId), false, false, "")
+	to_sid := getString(flds.ToStopId, r, flds.FldName(flds.ToStopId), false, false, "")
 
-	from_rid := getString(flds.FromRouteId, r, flds, false, false, "")
-	to_rid := getString(flds.ToRouteId, r, flds, false, false, "")
+	from_rid := getString(flds.FromRouteId, r, flds.FldName(flds.FromRouteId), false, false, "")
+	to_rid := getString(flds.ToRouteId, r, flds.FldName(flds.ToRouteId), false, false, "")
 
-	from_tid := getString(flds.FromTripId, r, flds, false, false, "")
-	to_tid := getString(flds.ToTripId, r, flds, false, false, "")
+	from_tid := getString(flds.FromTripId, r, flds.FldName(flds.FromTripId), false, false, "")
+	to_tid := getString(flds.ToTripId, r, flds.FldName(flds.ToTripId), false, false, "")
 
 	if len(from_sid) > 0 {
 		if val, ok := feed.Stops[prefix+from_sid]; ok {
@@ -1610,8 +1610,8 @@ func createTransfer(r []string, flds TransferFields, feed *Feed, prefix string) 
 		panic(fmt.Errorf("either to_stop_id, to_route_id, or to_trip_id must be set"))
 	}
 
-	tv.Transfer_type = getRangeInt(flds.TransferType, r, flds, false, 0, 5)
-	tv.Min_transfer_time = getPositiveIntWithDefault(flds.MinTransferTime, r, flds, -1, feed.opts.UseDefValueOnError, feed)
+	tv.Transfer_type = getRangeInt(flds.TransferType, r, flds.FldName(flds.TransferType), false, 0, 5)
+	tv.Min_transfer_time = getPositiveIntWithDefault(flds.MinTransferTime, r, flds.FldName(flds.MinTransferTime), -1, feed.opts.UseDefValueOnError, feed)
 
 	return tk, tv, nil
 }
@@ -1625,36 +1625,36 @@ func createPathway(r []string, flds PathwayFields, feed *Feed, prefix string) (t
 
 	a := new(gtfs.Pathway)
 
-	a.Id = prefix + getString(flds.pathwayId, r, flds, true, true, "")
+	a.Id = prefix + getString(flds.pathwayId, r, flds.FldName(flds.pathwayId), true, true, "")
 
-	if val, ok := feed.Stops[prefix+getString(flds.fromStopId, r, flds, true, true, "")]; ok {
+	if val, ok := feed.Stops[prefix+getString(flds.fromStopId, r, flds.FldName(flds.fromStopId), true, true, "")]; ok {
 		a.From_stop = val
 		if a.From_stop.Location_type == 1 {
-			panic(errors.New("Stop for 'from_stop_id' with id " + getString(flds.fromStopId, r, flds, true, true, "") + " has location_type=1 (Station). Only stops/platforms (location_type=0), entrances/exits (location_type=2), generic nodes (location_type=3) or boarding areas (location_type=4) are allowed here."))
+			panic(errors.New("Stop for 'from_stop_id' with id " + getString(flds.fromStopId, r, flds.FldName(flds.fromStopId), true, true, "") + " has location_type=1 (Station). Only stops/platforms (location_type=0), entrances/exits (location_type=2), generic nodes (location_type=3) or boarding areas (location_type=4) are allowed here."))
 		}
 	} else {
-		panic(&StopNotFoundErr{prefix, getString(flds.fromStopId, r, flds, true, true, "")})
+		panic(&StopNotFoundErr{prefix, getString(flds.fromStopId, r, flds.FldName(flds.fromStopId), true, true, "")})
 	}
 
-	if val, ok := feed.Stops[prefix+getString(flds.toStopId, r, flds, true, true, "")]; ok {
+	if val, ok := feed.Stops[prefix+getString(flds.toStopId, r, flds.FldName(flds.toStopId), true, true, "")]; ok {
 		a.To_stop = val
 		if a.To_stop.Location_type == 1 {
-			panic(errors.New("Stop for 'to_stop_id' with id " + getString(flds.toStopId, r, flds, true, true, "") + " has location_type=1 (Station). Only stops/platforms (location_type=0), entrances/exits (location_type=2), generic nodes (location_type=3) or boarding areas (location_type=4) are allowed here."))
+			panic(errors.New("Stop for 'to_stop_id' with id " + getString(flds.toStopId, r, flds.FldName(flds.toStopId), true, true, "") + " has location_type=1 (Station). Only stops/platforms (location_type=0), entrances/exits (location_type=2), generic nodes (location_type=3) or boarding areas (location_type=4) are allowed here."))
 		}
 	} else {
-		panic(&StopNotFoundErr{prefix, getString(flds.toStopId, r, flds, true, true, "")})
+		panic(&StopNotFoundErr{prefix, getString(flds.toStopId, r, flds.FldName(flds.toStopId), true, true, "")})
 	}
 
-	a.Mode = uint8(getRangeInt(flds.pathwayMode, r, flds, true, 1, 7))
-	a.Is_bidirectional = getBool(flds.isBidirectional, r, flds, true, false, feed.opts.UseDefValueOnError, feed)
+	a.Mode = uint8(getRangeInt(flds.pathwayMode, r, flds.FldName(flds.pathwayMode), true, 1, 7))
+	a.Is_bidirectional = getBool(flds.isBidirectional, r, flds.FldName(flds.isBidirectional), true, false, feed.opts.UseDefValueOnError, feed)
 
-	length := getNullableFloat(flds.length, r, flds, feed.opts.UseDefValueOnError, feed)
+	length := getNullableFloat(flds.length, r, flds.FldName(flds.length), feed.opts.UseDefValueOnError, feed)
 	a.Length = length
 
-	a.Traversal_time = int(getPositiveIntWithDefault(flds.traversalTime, r, flds, -1, feed.opts.UseDefValueOnError, feed))
+	a.Traversal_time = int(getPositiveIntWithDefault(flds.traversalTime, r, flds.FldName(flds.traversalTime), -1, feed.opts.UseDefValueOnError, feed))
 
-	a.Stair_count = getIntWithDefault(flds.stairCount, r, flds, 0, feed.opts.UseDefValueOnError, feed)
-	a.Max_slope = getNullableFloat(flds.maxSlope, r, flds, feed.opts.UseDefValueOnError, feed)
+	a.Stair_count = getIntWithDefault(flds.stairCount, r, flds.FldName(flds.stairCount), 0, feed.opts.UseDefValueOnError, feed)
+	a.Max_slope = getNullableFloat(flds.maxSlope, r, flds.FldName(flds.maxSlope), feed.opts.UseDefValueOnError, feed)
 	if math.IsNaN(float64(a.Max_slope)) {
 		a.Max_slope = 0
 	}
@@ -1662,8 +1662,8 @@ func createPathway(r []string, flds PathwayFields, feed *Feed, prefix string) (t
 	width := getNullablePositiveFloat(flds.minWidth, r, flds, feed.opts.UseDefValueOnError, feed)
 	a.Min_width = width
 
-	a.Signposted_as = getString(flds.signpostedAs, r, flds, false, false, "")
-	a.Reversed_signposted_as = getString(flds.reversedSignpostedAs, r, flds, false, false, "")
+	a.Signposted_as = getString(flds.signpostedAs, r, flds.FldName(flds.signpostedAs), false, false, "")
+	a.Reversed_signposted_as = getString(flds.reversedSignpostedAs, r, flds.FldName(flds.reversedSignpostedAs), false, false, "")
 
 	return a, nil
 }
@@ -1677,17 +1677,17 @@ func createLevel(r []string, flds LevelFields, feed *Feed, idprefix string) (t *
 
 	a := new(gtfs.Level)
 
-	a.Id = idprefix + getString(flds.levelId, r, flds, true, true, "")
-	a.Index = getNullableFloat(flds.levelIndex, r, flds, feed.opts.UseDefValueOnError, feed)
+	a.Id = idprefix + getString(flds.levelId, r, flds.FldName(flds.levelId), true, true, "")
+	a.Index = getNullableFloat(flds.levelIndex, r, flds.FldName(flds.levelIndex), feed.opts.UseDefValueOnError, feed)
 	if math.IsNaN(float64(a.Index)) {
 		a.Index = 0
 	}
-	a.Name = getString(flds.levelName, r, flds, false, false, "")
+	a.Name = getString(flds.levelName, r, flds.FldName(flds.levelName), false, false, "")
 
 	return a, nil
 }
 
-func getString(id int, r []string, flds Fields, req bool, nonempty bool, emptyrepl string) string {
+func getString(id int, r []string, fldName string, req bool, nonempty bool, emptyrepl string) string {
 	if id >= 0 {
 		trimmed := ""
 		if id < len(r) {
@@ -1697,13 +1697,13 @@ func getString(id int, r []string, flds Fields, req bool, nonempty bool, emptyre
 			if len(emptyrepl) > 0 {
 				return emptyrepl
 			} else {
-				panic(fmt.Errorf("Expected non-empty string for field '%s'", flds.FldName(id)))
+				panic(fmt.Errorf("Expected non-empty string for field '%s'", fldName))
 			}
 		} else {
 			return trimmed
 		}
 	} else if req {
-		panic(fmt.Errorf("Expected required field '%s'", flds.FldName(id)))
+		panic(fmt.Errorf("Expected required field '%s'", fldName))
 	}
 	return ""
 }
@@ -1799,7 +1799,7 @@ func getTimezone(id int, r []string, flds Fields, req bool, ignErrs bool, feed *
 	return emptyTz
 }
 
-func getIsoLangCode(id int, r []string, flds Fields, req bool, ignErrs bool, feed *Feed) gtfs.LanguageISO6391 {
+func getIsoLangCode(id int, r []string, fldName string, req bool, ignErrs bool, feed *Feed) gtfs.LanguageISO6391 {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		l, e := gtfs.NewLanguageISO6391(r[id])
 		if e != nil && (req || !ignErrs) {
@@ -1810,16 +1810,16 @@ func getIsoLangCode(id int, r []string, flds Fields, req bool, ignErrs bool, fee
 		}
 		return l
 	} else if req {
-		panic(fmt.Errorf("Expected required field '%s'", flds.FldName(id)))
+		panic(fmt.Errorf("Expected required field '%s'", fldName))
 	}
 	l, _ := gtfs.NewLanguageISO6391("")
 	return l
 }
 
-func getColor(id int, r []string, flds Fields, req bool, def string, ignErrs bool, feed *Feed) string {
+func getColor(id int, r []string, fldName string, req bool, def string, ignErrs bool, feed *Feed) string {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		if len(r[id]) != 6 {
-			locErr := fmt.Errorf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", flds.FldName(id), errFldPrep(r[id]))
+			locErr := fmt.Errorf("Expected six-character hexadecimal number as color for field '%s' (found: %s)", fldName, errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1828,7 +1828,7 @@ func getColor(id int, r []string, flds Fields, req bool, def string, ignErrs boo
 		}
 
 		if _, e := hex.DecodeString(r[id]); e != nil {
-			locErr := fmt.Errorf("Expected hexadecimal number as color for field '%s' (found: %s)", flds.FldName(id), r[id])
+			locErr := fmt.Errorf("Expected hexadecimal number as color for field '%s' (found: %s)", fldName, r[id])
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1837,7 +1837,7 @@ func getColor(id int, r []string, flds Fields, req bool, def string, ignErrs boo
 		}
 		return strings.ToUpper(r[id])
 	} else if req {
-		locErr := fmt.Errorf("Expected required field '%s'", flds.FldName(id))
+		locErr := fmt.Errorf("Expected required field '%s'", fldName)
 		if ignErrs {
 			feed.warn(locErr)
 			return def
@@ -1847,11 +1847,11 @@ func getColor(id int, r []string, flds Fields, req bool, def string, ignErrs boo
 	return strings.ToUpper(def)
 }
 
-func getIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, feed *Feed) int {
+func getIntWithDefault(id int, r []string, fldName string, def int, ignErrs bool, feed *Feed) int {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		num, err := fastfloat.ParseInt64(r[id])
 		if err != nil {
-			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
+			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", fldName, errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1863,24 +1863,24 @@ func getIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, f
 	return def
 }
 
-func getPositiveInt(id int, r []string, flds Fields, req bool) int {
+func getPositiveInt(id int, r []string, fldName string, req bool) int {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		num, err := fastfloat.ParseInt64(r[id])
 		if err != nil || num < 0 {
-			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id])))
+			panic(fmt.Errorf("Expected positive integer for field '%s', found '%s'", fldName, errFldPrep(r[id])))
 		}
 		return int(num)
 	} else if req {
-		panic(fmt.Errorf("Expected required field '%s'", flds.FldName(id)))
+		panic(fmt.Errorf("Expected required field '%s'", fldName))
 	}
 	return 0
 }
 
-func getPositiveIntWithDefault(id int, r []string, flds Fields, def int, ignErrs bool, feed *Feed) int {
+func getPositiveIntWithDefault(id int, r []string, fldName string, def int, ignErrs bool, feed *Feed) int {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		num, err := fastfloat.ParseInt64(r[id])
 		if err != nil || num < 0 {
-			locErr := fmt.Errorf("Expected positive integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
+			locErr := fmt.Errorf("Expected positive integer for field '%s', found '%s'", fldName, errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1892,29 +1892,29 @@ func getPositiveIntWithDefault(id int, r []string, flds Fields, def int, ignErrs
 	return def
 }
 
-func getRangeInt(id int, r []string, flds Fields, req bool, min int, max int) int {
+func getRangeInt(id int, r []string, fldName string, req bool, min int, max int) int {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		num, err := fastfloat.ParseInt64(r[id])
 		if err != nil {
-			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id])))
+			panic(fmt.Errorf("Expected integer for field '%s', found '%s'", fldName, errFldPrep(r[id])))
 		}
 
 		if int(num) > max || int(num) < min {
-			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, flds.FldName(id), errFldPrep(r[id])))
+			panic(fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, fldName, errFldPrep(r[id])))
 		}
 
 		return int(num)
 	} else if req {
-		panic(fmt.Errorf("Expected required field '%s'", flds.FldName(id)))
+		panic(fmt.Errorf("Expected required field '%s'", fldName))
 	}
 	return 0
 }
 
-func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, def int, ignErrs bool, feed *Feed) int {
+func getRangeIntWithDefault(id int, r []string, fldName string, min int, max int, def int, ignErrs bool, feed *Feed) int {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		num, err := fastfloat.ParseInt64(r[id])
 		if err != nil {
-			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
+			locErr := fmt.Errorf("Expected integer for field '%s', found '%s'", fldName, errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1923,7 +1923,7 @@ func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, d
 		}
 
 		if int(num) > max || int(num) < min {
-			locErr := fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, flds.FldName(id), errFldPrep(r[id]))
+			locErr := fmt.Errorf("Expected integer between %d and %d for field '%s', found %s", min, max, fldName, errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -1936,7 +1936,7 @@ func getRangeIntWithDefault(id int, r []string, flds Fields, min int, max int, d
 	return def
 }
 
-func getFloat(id int, r []string, flds Fields, req bool) float32 {
+func getFloat(id int, r []string, fldName string, req bool) float32 {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		num, err := fastfloat.Parse(r[id])
 		if err != nil || math.IsNaN(num) {
@@ -1944,51 +1944,70 @@ func getFloat(id int, r []string, flds Fields, req bool) float32 {
 			num, err = fastfloat.Parse(strings.Replace(r[id], ",", ".", 1))
 		}
 		if err != nil || math.IsNaN(num) {
-			panic(fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id])))
+			panic(fmt.Errorf("Expected float for field '%s', found '%s'", fldName, errFldPrep(r[id])))
 		}
 		return float32(num)
 	} else if req {
-		panic(fmt.Errorf("Expected required field '%s'", flds.FldName(id)))
+		panic(fmt.Errorf("Expected required field '%s'", fldName))
 	}
 	return -1
 }
 
-func getTime(id int, r []string, flds Fields) gtfs.Time {
+func getTime(id int, r []string, fldName string) gtfs.Time {
 	if id < 0 {
-		panic(fmt.Errorf("Expected required field '%s'", flds.FldName(id)))
+		panic(fmt.Errorf("Expected required field '%s'", fldName))
 	}
 
 	if id >= len(r) || len(r[id]) == 0 {
 		return gtfs.Time{Second: int8(-1), Minute: int8(-1), Hour: int8(-1)}
 	}
 
+	// Use strings.Cut here as this function is very hot due to being called from createStopTimes, and splitting would allocate.
+	// This is also the reason for the somewhat clunky variable pre-allocation and error handler structure.
 	var hour, minute, second int64
-	parts := strings.Split(r[id], ":")
 	var e error
+	var hourStr, minuteStr, secondStr string
+	var found bool
+	remaining := r[id]
 
-	if len(parts) != 3 || len(parts[0]) == 0 || len(parts[1]) != 2 || len(parts[2]) != 2 {
-		e = fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", flds.FldName(id), errFldPrep(r[id]), e.Error())
+	hourStr, remaining, found = strings.Cut(remaining, ":")
+	if !found || len(hourStr) == 0 {
+		goto fail
 	}
 
-	if e == nil {
-		hour, e = fastfloat.ParseInt64(parts[0])
+	hour, e = fastfloat.ParseInt64(hourStr)
+	if e != nil {
+		goto fail
 	}
-	if e == nil {
-		minute, e = fastfloat.ParseInt64(parts[1])
+
+	minuteStr, remaining, found = strings.Cut(remaining, ":")
+	if !found || len(minuteStr) != 2 {
+		goto fail
 	}
-	if e == nil {
-		second, e = fastfloat.ParseInt64(parts[2])
+
+	minute, e = fastfloat.ParseInt64(minuteStr)
+	if e != nil {
+		goto fail
+	}
+
+	secondStr, _, found = strings.Cut(remaining, ":")
+	if len(secondStr) != 2 {
+		goto fail
+	}
+
+	second, e = fastfloat.ParseInt64(secondStr)
+	if e != nil {
+		goto fail
 	}
 
 	if hour > 127 {
-		panic(fmt.Errorf("Max representable time is '127:59:59', found '%s' for field %s", errFldPrep(r[id]), flds.FldName(id)))
+		panic(fmt.Errorf("Max representable time is '127:59:59', found '%s' for field %s", errFldPrep(r[id]), fldName))
 	}
 
-	if e != nil {
-		panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", flds.FldName(id), errFldPrep(r[id]), e.Error()))
-	} else {
-		return gtfs.Time{Hour: int8(hour), Minute: int8(minute), Second: int8(second)}
-	}
+	return gtfs.Time{Hour: int8(hour), Minute: int8(minute), Second: int8(second)}
+
+fail:
+	panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", fldName, errFldPrep(r[id]), e.Error()))
 }
 
 func getNullablePositiveFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed) float32 {
@@ -2011,7 +2030,7 @@ func getNullablePositiveFloat(id int, r []string, flds Fields, ignErrs bool, fee
 	return float32(math.NaN())
 }
 
-func getNullableFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed) float32 {
+func getNullableFloat(id int, r []string, fldName string, ignErrs bool, feed *Feed) float32 {
 	if id >= 0 && id < len(r) && len(r[id]) > 0 {
 		num, err := fastfloat.Parse(r[id])
 		if err != nil || math.IsNaN(num) {
@@ -2019,7 +2038,7 @@ func getNullableFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed)
 			num, err = fastfloat.Parse(strings.Replace(r[id], ",", ".", 1))
 		}
 		if err != nil || math.IsNaN(num) {
-			locErr := fmt.Errorf("Expected float for field '%s', found '%s'", flds.FldName(id), errFldPrep(r[id]))
+			locErr := fmt.Errorf("Expected float for field '%s', found '%s'", fldName, errFldPrep(r[id]))
 			if ignErrs {
 				feed.warn(locErr)
 				return float32(math.NaN())
@@ -2031,7 +2050,7 @@ func getNullableFloat(id int, r []string, flds Fields, ignErrs bool, feed *Feed)
 	return float32(math.NaN())
 }
 
-func getBool(id int, r []string, flds Fields, req bool, def bool, ignErrs bool, feed *Feed) bool {
+func getBool(id int, r []string, fldName string, req bool, def bool, ignErrs bool, feed *Feed) bool {
 	val := ""
 	if id >= 0 && id < len(r) {
 		val = r[id]
@@ -2039,7 +2058,7 @@ func getBool(id int, r []string, flds Fields, req bool, def bool, ignErrs bool, 
 	if len(val) > 0 {
 		num, err := fastfloat.ParseInt64(val)
 		if err != nil || (num != 0 && num != 1) {
-			locErr := fmt.Errorf("Expected 1 or 0 for field '%s', found '%s'", flds.FldName(id), errFldPrep(val))
+			locErr := fmt.Errorf("Expected 1 or 0 for field '%s', found '%s'", fldName, errFldPrep(val))
 			if ignErrs {
 				feed.warn(locErr)
 				return def
@@ -2048,7 +2067,7 @@ func getBool(id int, r []string, flds Fields, req bool, def bool, ignErrs bool, 
 		}
 		return num == 1
 	} else if req {
-		locErr := fmt.Errorf("Expected required field '%s'", flds.FldName(id))
+		locErr := fmt.Errorf("Expected required field '%s'", fldName)
 		if ignErrs {
 			feed.warn(locErr)
 			return def
