@@ -10,13 +10,14 @@ import (
 	hex "encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/patrickbr/gtfsparser/gtfs"
-	"github.com/valyala/fastjson/fastfloat"
 	"math"
 	mail "net/mail"
 	url "net/url"
 	"regexp"
 	"strings"
+
+	"github.com/patrickbr/gtfsparser/gtfs"
+	"github.com/valyala/fastjson/fastfloat"
 )
 
 var emptyTz, _ = gtfs.NewTimezone("")
@@ -928,11 +929,6 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 
 	a.Short_name = getString(flds.routeShortName, r, flds.FldName(flds.routeShortName), false, false, "")
 	a.Long_name = getString(flds.routeLongName, r, flds.FldName(flds.routeLongName), false, false, "")
-
-	if feed.opts.RemoveFillers {
-		a.Short_name = removeFillers(a.Short_name)
-		a.Long_name = removeFillers(a.Long_name)
-	}
 
 	if feed.opts.RemoveFillers {
 		a.Short_name = removeFillers(a.Short_name)
