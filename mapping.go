@@ -1025,7 +1025,7 @@ func createServiceFromCalendarDates(r []string, flds CalendarDatesFields, feed *
 			return nil, errors.New("Date exception for service id " + getString(flds.serviceId, r, flds.FldName(flds.serviceId), true, true, "") + " defined 2 times for one date.")
 		}
 		if (filterDateEnd.IsEmpty() || !date.GetTime().After(filterDateEnd.GetTime())) &&
-			(filterDateStart.IsEmpty() || !date.GetTime().Before(filterDateStart.GetTime())) {
+		(filterDateStart.IsEmpty() || !date.GetTime().Before(filterDateStart.GetTime())) {
 			service.SetExceptionTypeOn(date, int8(t))
 		}
 	}
@@ -1246,7 +1246,8 @@ func createStopTime(r []string, flds *StopTimeFields, feed *Feed, prefix string)
 	if flds.stopHeadsign >= 0 && flds.stopHeadsign < len(r) && len(r[flds.stopHeadsign]) > 0 && r[flds.stopHeadsign] != *trip.Headsign {
 		// only store headsigns that are different to the default trip headsign
 		if *feed.lastString != r[flds.stopHeadsign] {
-			feed.lastString = &r[flds.stopHeadsign]
+			tmp := r[flds.stopHeadsign]
+			feed.lastString = &tmp
 		}
 		a.SetHeadsign(feed.lastString)
 	}
@@ -2041,7 +2042,7 @@ func getTime(id int, r []string, fldName string) gtfs.Time {
 
 	return gtfs.Time{Hour: int8(hour), Minute: int8(minute), Second: int8(second)}
 
-fail:
+	fail:
 	panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", fldName, errFldPrep(r[id]), e.Error()))
 }
 
