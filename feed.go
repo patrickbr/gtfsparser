@@ -279,7 +279,6 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if e == nil {
 		e = feed.parseTrips(path, prefix, filteredRoutes, filteredTrips)
 	}
-
 	if e == nil {
 		e = feed.reserveStopTimes(path, prefix, filteredTrips)
 	}

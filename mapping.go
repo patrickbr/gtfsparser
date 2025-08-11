@@ -1366,6 +1366,7 @@ func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) 
 	}()
 
 	shapeID := prefix + getString(flds.shapeId, r, flds.FldName(flds.shapeId), true, true, "")
+
 	var shape *gtfs.Shape
 
 	lat := getFloat(flds.shapePtLat, r, flds.FldName(flds.shapePtLat), true)
@@ -1718,18 +1719,15 @@ func createLevel(r []string, flds LevelFields, feed *Feed, idprefix string) (t *
 
 func getString(id int, r []string, fldName string, req bool, nonempty bool, emptyrepl string) string {
 	if id >= 0 {
-		trimmed := ""
-		if id < len(r) {
-			trimmed = r[id]
+		if id < len(r) && len(r[id]) > 0{
+			return r[id]
 		}
-		if nonempty && trimmed == "" {
+		if nonempty {
 			if len(emptyrepl) > 0 {
 				return emptyrepl
 			} else {
 				panic(fmt.Errorf("Expected non-empty string for field '%s'", fldName))
 			}
-		} else {
-			return trimmed
 		}
 	} else if req {
 		panic(fmt.Errorf("Expected required field '%s'", fldName))
