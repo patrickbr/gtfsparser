@@ -10,13 +10,14 @@ import (
 	hex "encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/patrickbr/gtfsparser/gtfs"
-	"github.com/valyala/fastjson/fastfloat"
 	"math"
 	mail "net/mail"
 	url "net/url"
 	"regexp"
 	"strings"
+
+	"github.com/patrickbr/gtfsparser/gtfs"
+	"github.com/valyala/fastjson/fastfloat"
 )
 
 var emptyTz, _ = gtfs.NewTimezone("")
@@ -934,11 +935,6 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 		a.Long_name = removeFillers(a.Long_name)
 	}
 
-	if feed.opts.RemoveFillers {
-		a.Short_name = removeFillers(a.Short_name)
-		a.Long_name = removeFillers(a.Long_name)
-	}
-
 	if len(a.Short_name) == 0 && len(a.Long_name) == 0 {
 		if feed.opts.UseDefValueOnError {
 			a.Short_name = "-"
@@ -965,6 +961,10 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 	a.Sort_order = getPositiveIntWithDefault(flds.routeSortOrder, r, flds.FldName(flds.routeSortOrder), -1, feed.opts.UseDefValueOnError, feed)
 	a.Continuous_pickup = int8(getRangeIntWithDefault(flds.continuousPickup, r, flds.FldName(flds.routeSortOrder), 0, 3, 1, feed.opts.UseDefValueOnError, feed))
 	a.Continuous_drop_off = int8(getRangeIntWithDefault(flds.continuousDropOff, r, flds.FldName(flds.continuousDropOff), 0, 3, 1, feed.opts.UseDefValueOnError, feed))
+
+	if !hasValidContrast(a.Text_color, a.Color) {
+		return nil, errors.New("Invalid color contrast between text_color and color!")
+	}
 
 	return a, nil
 }

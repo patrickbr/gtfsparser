@@ -7,7 +7,6 @@
 package gtfsparser
 
 import (
-	// "github.com/patrickbr/gtfsparser/gtfs"
 	"testing"
 )
 
@@ -60,6 +59,11 @@ func TestFeedParsing(t *testing.T) {
 
 	if len(shp.Points) != 7 {
 		t.Error(len(shp.Points))
+	}
+
+	// the one route with invalid color contrast should be removed
+	if len(feedFailA.Routes) != 16 {
+		t.Error(len(feedFailA.Routes))
 	}
 
 	feedCorB := NewFeed()

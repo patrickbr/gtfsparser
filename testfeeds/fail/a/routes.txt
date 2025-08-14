@@ -15,3 +15,5 @@ AAMV,DTA,50,Airport - Amargosa Valley,,3,,,
 AAM6,DTA,50,Airport - Amargosa Valley,,3,,,
 AAM7,DTA,50,Airport - Amargosa Valley,,3,,,
 AAM8,DTA,50,Airport - Amargosa Valley,,3,,,
+AAM9,DTA,50,Not enough color contrast,,3,,000000,222222
+AAM10,DTA,50,Not enough color contrast,,3,,222222,343434
