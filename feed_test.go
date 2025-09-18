@@ -8,6 +8,9 @@ package gtfsparser
 
 import (
 	// "github.com/patrickbr/gtfsparser/gtfs"
+	"bytes"
+	"io"
+	"os"
 	"testing"
 )
 
@@ -60,6 +63,34 @@ func TestFeedParsing(t *testing.T) {
 
 	if len(shp.Points) != 7 {
 		t.Error(len(shp.Points))
+	}
+
+	// check for warning => pipe stderr into bytes
+	oldStderr := os.Stderr
+
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	feedFailB := NewFeed()
+	feedFailB.SetParseOpts(ParseOptions{UseDefValueOnError: false, DropErroneous: false, DryRun: false, ShowWarnings: true})
+	e = feedFailB.Parse("./testfeeds/fail/b")
+
+	w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	output := buf.String()
+
+	if output == "" {
+		t.Error("expected warning, but got none")
+	} else if !bytes.Contains([]byte(output), []byte("WARNING:")) {
+		t.Errorf("expected warning, got: %q", output)
+	}
+
+	if e != nil {
+		t.Error("Parse unsuccessful, but input feed was correct!")
+		return
 	}
 
 	feedCorB := NewFeed()
