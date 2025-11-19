@@ -1025,7 +1025,7 @@ func createServiceFromCalendarDates(r []string, flds CalendarDatesFields, feed *
 			return nil, errors.New("Date exception for service id " + getString(flds.serviceId, r, flds.FldName(flds.serviceId), true, true, "") + " defined 2 times for one date.")
 		}
 		if (filterDateEnd.IsEmpty() || !date.GetTime().After(filterDateEnd.GetTime())) &&
-			(filterDateStart.IsEmpty() || !date.GetTime().Before(filterDateStart.GetTime())) {
+		(filterDateStart.IsEmpty() || !date.GetTime().Before(filterDateStart.GetTime())) {
 			service.SetExceptionTypeOn(date, int8(t))
 		}
 	}
@@ -1243,14 +1243,14 @@ func createStopTime(r []string, flds *StopTimeFields, feed *Feed, prefix string)
 
 	a.SetSequence(getRangeInt(flds.stopSequence, r, flds.FldName(flds.stopSequence), true, 0, int(^uint32(0)>>1)))
 
-	/*
-	* There used to be logic here to store a custom headsign,
-	* if different from the default trip headsign.
-	* However, this causes a massive amount of inescapable allocation (>25% of all allocations).
-	* The code was likely defunct anyways, as the flds.stopSequence ID is negative, and for fields that are
-	* not required getString simply returned an empty string anyways.
-	 */
-	a.SetHeadsign(trip.Headsign)
+	if flds.stopHeadsign >= 0 && flds.stopHeadsign < len(r) && len(r[flds.stopHeadsign]) > 0 && r[flds.stopHeadsign] != *trip.Headsign {
+		// only store headsigns that are different to the default trip headsign
+		if *feed.lastString != r[flds.stopHeadsign] {
+			tmp := r[flds.stopHeadsign]
+			feed.lastString = &tmp
+		}
+		a.SetHeadsign(feed.lastString)
+	}
 
 	a.SetPickup_type(uint8(getRangeInt(flds.pickupType, r, flds.FldName(flds.pickupType), false, 0, 3)))
 	a.SetDrop_off_type(uint8(getRangeInt(flds.dropOffType, r, flds.FldName(flds.dropOffType), false, 0, 3)))
@@ -1366,6 +1366,7 @@ func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) 
 	}()
 
 	shapeID := prefix + getString(flds.shapeId, r, flds.FldName(flds.shapeId), true, true, "")
+
 	var shape *gtfs.Shape
 
 	lat := getFloat(flds.shapePtLat, r, flds.FldName(flds.shapePtLat), true)
@@ -1718,18 +1719,15 @@ func createLevel(r []string, flds LevelFields, feed *Feed, idprefix string) (t *
 
 func getString(id int, r []string, fldName string, req bool, nonempty bool, emptyrepl string) string {
 	if id >= 0 {
-		trimmed := ""
-		if id < len(r) {
-			trimmed = r[id]
+		if id < len(r) && len(r[id]) > 0{
+			return r[id]
 		}
-		if nonempty && trimmed == "" {
+		if nonempty {
 			if len(emptyrepl) > 0 {
 				return emptyrepl
 			} else {
 				panic(fmt.Errorf("Expected non-empty string for field '%s'", fldName))
 			}
-		} else {
-			return trimmed
 		}
 	} else if req {
 		panic(fmt.Errorf("Expected required field '%s'", fldName))
@@ -2042,7 +2040,7 @@ func getTime(id int, r []string, fldName string) gtfs.Time {
 
 	return gtfs.Time{Hour: int8(hour), Minute: int8(minute), Second: int8(second)}
 
-fail:
+	fail:
 	panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", fldName, errFldPrep(r[id]), e.Error()))
 }
 

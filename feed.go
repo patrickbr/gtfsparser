@@ -10,14 +10,15 @@ import (
 	// "archive/zip"
 	"errors"
 	"fmt"
-	"github.com/klauspost/compress/zip"
-	"github.com/patrickbr/gtfsparser/gtfs"
 	"io"
 	"math"
 	"os"
 	opath "path"
 	"sort"
 	"unicode"
+
+	"github.com/klauspost/compress/zip"
+	"github.com/patrickbr/gtfsparser/gtfs"
 )
 
 // Holds the original column ordering
@@ -279,7 +280,6 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if e == nil {
 		e = feed.parseTrips(path, prefix, filteredRoutes, filteredTrips)
 	}
-
 	if e == nil {
 		e = feed.reserveStopTimes(path, prefix, filteredTrips)
 	}
@@ -938,6 +938,28 @@ func (feed *Feed) parseTrips(path string, prefix string, filteredRoutes map[stri
 				}
 
 				feed.TripsAddFlds[reader.header[i]][tripId] = record[i]
+			}
+		}
+	}
+
+	if feed.opts.ShowWarnings {
+		// for all trips connected by the same block_id, warn if the underlying route_type is different
+		blockIdRouteType := make(map[string]int16)
+		for _, trip := range feed.Trips {
+			if trip.Block_id != nil {
+				bid := *trip.Block_id
+				rt := trip.Route.Type
+
+				if prevRt, ok := blockIdRouteType[bid]; ok {
+					if prevRt != rt {
+						feed.warn(fmt.Errorf(
+							"Inconsistent route types for block_id '%s': found %d and %d",
+							bid, prevRt, rt,
+						))
+					}
+				} else {
+					blockIdRouteType[bid] = rt
+				}
 			}
 		}
 	}
