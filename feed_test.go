@@ -7,7 +7,6 @@
 package gtfsparser
 
 import (
-	// "github.com/patrickbr/gtfsparser/gtfs"
 	"testing"
 )
 
