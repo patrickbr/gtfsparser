@@ -1443,6 +1443,7 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string, filteredRo
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
 		fare, rule, e := createFareRule(record, flds, feed, prefix, geofilteredZones)
 		if e != nil {
+			feed.ErrorStats.DroppedFareAttributeRules++
 			routeNotFoundErr, routeNotFound := e.(*RouteNotFoundErr)
 			wasFiltered := false
 			if routeNotFound {
@@ -1451,10 +1452,8 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string, filteredRo
 
 			if wasFiltered {
 				// silently drop route-related rule
-				feed.ErrorStats.DroppedFareAttributeRules++
 				continue
 			} else if feed.opts.DropErroneous {
-				// do not count DroppedFareAttributeRules again, since we already did the couting in checkZoneId
 				feed.warn(e)
 				continue
 			} else {

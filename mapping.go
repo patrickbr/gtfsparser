@@ -1613,7 +1613,6 @@ func (feed *Feed) checkZoneID(
 	// however, it could be that we havent seen it bcs we filtered it out
 	if _, ok := geofilteredZones[*zoneID]; ok {
 		// silently drop
-		feed.ErrorStats.DroppedFareAttributeRules++
 		return true, nil
 	}
 
@@ -1629,7 +1628,6 @@ func (feed *Feed) checkZoneID(
 	}
 
 	if feed.opts.DropErroneous {
-		feed.ErrorStats.DroppedFareAttributes++
 		feed.warn(locErr)
 		return true, nil
 	}
