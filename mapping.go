@@ -1528,7 +1528,7 @@ func createFareAttribute(r []string, flds FareAttributeFields, feed *Feed, prefi
 	return a, nil
 }
 
-func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) (fare *gtfs.FareAttribute, rl *gtfs.FareAttributeRule, err error) {
+func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string, geofilteredZones map[string]struct{}) (fare *gtfs.FareAttribute, rl *gtfs.FareAttributeRule, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -1540,7 +1540,7 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) 
 
 	fareid = prefix + getString(flds.fareId, r, flds.FldName(flds.fareId), true, true, "")
 
-	// first, check if the service already exists
+	// first, check if the fare already exists
 	if val, ok := feed.FareAttributes[fareid]; ok {
 		fareattr = val
 	} else {
@@ -1564,19 +1564,77 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) 
 	rule.Destination_id = prefix + getString(flds.destinationId, r, flds.FldName(flds.destinationId), false, false, "")
 	rule.Contains_id = prefix + getString(flds.containsId, r, flds.FldName(flds.containsId), false, false, "")
 
-	if _, ok := feed.ZoneIds[rule.Origin_id]; !ok {
-		feed.warn(fmt.Errorf("No zone_id '%s' (origin_id) defined in stops.txt", rule.Origin_id))
+	drop, err := feed.checkZoneID(&rule.Origin_id, "origin_id", geofilteredZones)
+	if err != nil {
+		return nil, nil, err
 	}
-	if _, ok := feed.ZoneIds[rule.Destination_id]; !ok {
-		feed.warn(fmt.Errorf("No zone_id '%s' (destination_id) defined in stops.txt", rule.Destination_id))
+	if drop {
+		return fareattr, nil, nil
 	}
-	if _, ok := feed.ZoneIds[rule.Contains_id]; !ok {
-		feed.warn(fmt.Errorf("No zone_id '%s' (contains_id) defined in stops.txt", rule.Contains_id))
+
+	drop, err = feed.checkZoneID(&rule.Destination_id, "destination_id", geofilteredZones)
+	if err != nil {
+		return nil, nil, err
+	}
+	if drop {
+		return fareattr, nil, nil
+	}
+
+	drop, err = feed.checkZoneID(&rule.Contains_id, "contains_id", geofilteredZones)
+	if err != nil {
+		return nil, nil, err
+	}
+	if drop {
+		return fareattr, nil, nil
+
 	}
 
 	fareattr.Rules = append(fareattr.Rules, rule)
 
 	return fareattr, rule, nil
+}
+
+func (feed *Feed) checkZoneID(
+	zoneID *string,
+	fieldName string,
+	geofilteredZones map[string]struct{},
+) (drop bool, err error) {
+
+	if *zoneID == "" {
+		return false, nil
+	}
+
+	// if we have seen this zone id, all good
+	if _, ok := feed.ZoneIds[*zoneID]; ok {
+		return false, nil
+	}
+
+	// at this point, we have not seen the zone id
+	// however, it could be that we havent seen it bcs we filtered it out
+	if _, ok := geofilteredZones[*zoneID]; ok {
+		// silently drop
+		feed.ErrorStats.DroppedFareAttributeRules++
+		return true, nil
+	}
+
+	locErr := fmt.Errorf(
+		"No zone_id '%s' (%s) defined in stops.txt",
+		*zoneID, fieldName,
+	)
+
+	if feed.opts.UseDefValueOnError {
+		*zoneID = ""
+		feed.warn(locErr)
+		return false, nil
+	}
+
+	if feed.opts.DropErroneous {
+		feed.ErrorStats.DroppedFareAttributes++
+		feed.warn(locErr)
+		return true, nil
+	}
+
+	return false, locErr
 }
 
 func createTransfer(r []string, flds TransferFields, feed *Feed, prefix string) (tk gtfs.TransferKey, tv gtfs.TransferVal, err error) {

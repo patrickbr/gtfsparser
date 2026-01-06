@@ -254,6 +254,11 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	// with -De
 	filteredTrips := make(map[string]struct{}, 0)
 
+	// holds zones ids that are dropped because of geometric filtering.
+	// if these are referenced later, we quietly ignore the error like
+	// with -De
+	geofilteredZones := make(map[string]struct{}, 0)
+
 	e = feed.parseAgencies(path, prefix)
 	if e == nil {
 		e = feed.parseFeedInfos(path)
@@ -262,7 +267,7 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseLevels(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseStops(path, prefix, geofilteredStops)
+		e = feed.parseStops(path, prefix, geofilteredStops, geofilteredZones)
 	}
 	if e == nil {
 		e = feed.reserveShapes(path, prefix)
@@ -302,7 +307,7 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseFareAttributes(path, prefix)
 	}
 	if e == nil {
-		e = feed.parseFareAttributeRules(path, prefix, filteredRoutes)
+		e = feed.parseFareAttributeRules(path, prefix, filteredRoutes, geofilteredZones)
 	}
 	if e == nil {
 		e = feed.parseFrequencies(path, prefix, filteredTrips)
@@ -485,7 +490,7 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]struct{}) (err error) {
+func (feed *Feed) parseStops(path string, prefix string, geofilteredStops map[string]struct{}, geofilteredZones map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "stops.txt")
 
 	if e != nil {
@@ -524,6 +529,9 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 		addFlds = addiFields(reader.header, flds)
 	}
 
+	zoneSeen := make(map[string]int)
+	zoneKept := make(map[string]int)
+
 	parentStopIds := make(map[string]string, 0)
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
 		stop, parentId, e := createStop(record, flds, feed, prefix)
@@ -552,9 +560,18 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 			}
 		}
 
+		if stop.Zone_id != "" {
+			zoneSeen[stop.Zone_id]++
+		}
+
 		if !contains {
-			geofiltered[stop.Id] = struct{}{}
+			geofilteredStops[stop.Id] = struct{}{}
 			continue
+		}
+
+		if stop.Zone_id != "" {
+			zoneKept[stop.Zone_id]++
+			feed.ZoneIds[stop.Zone_id] = true
 		}
 
 		if len(parentId) > len(prefix) {
@@ -572,10 +589,11 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 				feed.StopsAddFlds[reader.header[i]][stop.Id] = record[i]
 			}
 		}
+	}
 
-		// add zoneId if nonempty
-		if stop.Zone_id != "" {
-			feed.ZoneIds[stop.Zone_id] = true
+	for zoneID, seen := range zoneSeen {
+		if seen > 0 && zoneKept[zoneID] == 0 {
+			geofilteredZones[zoneID] = struct{}{}
 		}
 	}
 
@@ -586,7 +604,7 @@ func (feed *Feed) parseStops(path string, prefix string, geofiltered map[string]
 		pstop, ok := feed.Stops[pid]
 		if !ok {
 			locErr := errors.New("(for stop id " + id + ") No station with id " + pid + " found, cannot use as parent station here.")
-			_, wasFiltered := geofiltered[pid]
+			_, wasFiltered := geofilteredStops[pid]
 
 			// note: if type >= 2, a parent Id is *required*
 			if wasFiltered && feed.Stops[id].Location_type < 2 {
@@ -1393,7 +1411,7 @@ func (feed *Feed) parseFareAttributes(path string, prefix string) (err error) {
 	return e
 }
 
-func (feed *Feed) parseFareAttributeRules(path string, prefix string, filteredRoutes map[string]struct{}) (err error) {
+func (feed *Feed) parseFareAttributeRules(path string, prefix string, filteredRoutes map[string]struct{}, geofilteredZones map[string]struct{}) (err error) {
 	file, e := feed.getFile(path, "fare_rules.txt")
 
 	if e != nil {
@@ -1423,7 +1441,7 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string, filteredRo
 	}
 
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
-		fare, rule, e := createFareRule(record, flds, feed, prefix)
+		fare, rule, e := createFareRule(record, flds, feed, prefix, geofilteredZones)
 		if e != nil {
 			routeNotFoundErr, routeNotFound := e.(*RouteNotFoundErr)
 			wasFiltered := false
@@ -1432,9 +1450,11 @@ func (feed *Feed) parseFareAttributeRules(path string, prefix string, filteredRo
 			}
 
 			if wasFiltered {
+				// silently drop route-related rule
+				feed.ErrorStats.DroppedFareAttributeRules++
 				continue
 			} else if feed.opts.DropErroneous {
-				feed.ErrorStats.DroppedFareAttributeRules++
+				// do not count DroppedFareAttributeRules again, since we already did the couting in checkZoneId
 				feed.warn(e)
 				continue
 			} else {
