@@ -674,6 +674,18 @@ func (e *TripNotFoundErr) TripId() string {
 	return e.prefix + e.tid
 }
 
+type ZoneNotFoundError struct {
+	zid string
+}
+
+func (z *ZoneNotFoundError) Error() string {
+	return "No zone with id " + z.zid + " found."
+}
+
+func (z *ZoneNotFoundError) ZoneId() string {
+	return z.zid
+}
+
 func createTranslation(r []string, flds TranslationFields, feed *Feed, prefix string) (attr *gtfs.Translation, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1564,29 +1576,19 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string, 
 	rule.Destination_id = prefix + getString(flds.destinationId, r, flds.FldName(flds.destinationId), false, false, "")
 	rule.Contains_id = prefix + getString(flds.containsId, r, flds.FldName(flds.containsId), false, false, "")
 
-	drop, err := feed.checkZoneID(&rule.Origin_id, "origin_id", geofilteredZones)
+	err = feed.checkZoneID(&rule.Origin_id, "origin_id")
 	if err != nil {
 		return nil, nil, err
 	}
-	if drop {
-		return fareattr, nil, nil
-	}
 
-	drop, err = feed.checkZoneID(&rule.Destination_id, "destination_id", geofilteredZones)
+	err = feed.checkZoneID(&rule.Destination_id, "destination_id")
 	if err != nil {
 		return nil, nil, err
 	}
-	if drop {
-		return fareattr, nil, nil
-	}
 
-	drop, err = feed.checkZoneID(&rule.Contains_id, "contains_id", geofilteredZones)
+	err = feed.checkZoneID(&rule.Contains_id, "contains_id")
 	if err != nil {
 		return nil, nil, err
-	}
-	if drop {
-		return fareattr, nil, nil
-
 	}
 
 	fareattr.Rules = append(fareattr.Rules, rule)
@@ -1594,45 +1596,24 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string, 
 	return fareattr, rule, nil
 }
 
+// checkZoneID only validates existence; filtering and policy decisions
+// are handled by the caller.
 func (feed *Feed) checkZoneID(
 	zoneID *string,
 	fieldName string,
-	geofilteredZones map[string]struct{},
-) (drop bool, err error) {
+) error {
 
 	if *zoneID == "" {
-		return false, nil
+		return nil
 	}
 
-	// if we have seen this zone id, all good
 	if _, ok := feed.ZoneIds[*zoneID]; ok {
-		return false, nil
+		return nil
 	}
 
-	// at this point, we have not seen the zone id
-	// however, it could be that we havent seen it bcs we filtered it out
-	if _, ok := geofilteredZones[*zoneID]; ok {
-		// silently drop
-		return true, nil
+	return &ZoneNotFoundError{
+		zid: *zoneID,
 	}
-
-	locErr := fmt.Errorf(
-		"No zone_id '%s' (%s) defined in stops.txt",
-		*zoneID, fieldName,
-	)
-
-	if feed.opts.UseDefValueOnError {
-		*zoneID = ""
-		feed.warn(locErr)
-		return false, nil
-	}
-
-	if feed.opts.DropErroneous {
-		feed.warn(locErr)
-		return true, nil
-	}
-
-	return false, locErr
 }
 
 func createTransfer(r []string, flds TransferFields, feed *Feed, prefix string) (tk gtfs.TransferKey, tv gtfs.TransferVal, err error) {
