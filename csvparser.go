@@ -153,6 +153,8 @@ func (p *CsvParser) parseHeader() {
 	copy(p.header, rec)
 
 	for i, header := range rec {
+		header = strings.Trim(header, `"`)
+		p.header[i] = header
 		p.ret[header] = ""
 		p.headeridx[header] = i
 	}
