@@ -1,0 +1,46 @@
+package gtfsparser
+
+import (
+	"fmt"
+	"math"
+	"unicode"
+)
+
+func isValidId(s string) bool {
+	for _, r := range s {
+		if r > unicode.MaxASCII || !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
+}
+
+func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
+	const R = 6371.0 // Earth radius in km
+	dLat := (lat2 - lat1) * math.Pi / 180.0
+	dLon := (lon2 - lon1) * math.Pi / 180.0
+	lat1r := lat1 * math.Pi / 180.0
+	lat2r := lat2 * math.Pi / 180.0
+
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Sin(dLon/2)*math.Sin(dLon/2)*math.Cos(lat1r)*math.Cos(lat2r)
+	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+}
+
+func warnNearOriginOrPole(lat float64, lon float64, context string) error {
+	if math.Abs(lat) < 0.001 && math.Abs(lon) < 0.001 {
+		return fmt.Errorf("%s: point is too close to origin (0, 0)", context)
+	} else if math.Abs(lat) > 89.999 {
+		return fmt.Errorf("%s: point is too close to the North or South Pole", context)
+	}
+	return nil
+}

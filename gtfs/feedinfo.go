@@ -15,7 +15,7 @@ import (
 type FeedInfo struct {
 	Publisher_name string
 	Publisher_url  *url.URL
-	Lang           string
+	Lang           LanguageISO6391
 	Start_date     Date
 	End_date       Date
 	Version        string

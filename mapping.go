@@ -837,7 +837,8 @@ func createFeedInfo(r []string, flds FeedInfoFields, feed *Feed) (fi *gtfs.FeedI
 
 	f.Publisher_name = getString(flds.feedPublisherName, r, flds.FldName(flds.feedPublisherName), true, true, feed.opts.EmptyStringRepl)
 	f.Publisher_url = getURL(flds.feedPublisherUrl, r, flds, true, feed.opts.UseDefValueOnError, feed)
-	f.Lang = getString(flds.feedLang, r, flds.FldName(flds.feedLang), true, true, feed.opts.EmptyStringRepl)
+	f.Lang = getIsoLangCode(flds.feedLang, r, flds.FldName(flds.feedLang), true, true, feed)
+	// f.Lang = getString(flds.feedLang, r, flds.FldName(flds.feedLang), true, true, feed.opts.EmptyStringRepl)
 	f.Start_date = getDate(flds.feedStartDate, r, flds, false, feed.opts.UseDefValueOnError, feed)
 	f.End_date = getDate(flds.feedEndDate, r, flds, false, feed.opts.UseDefValueOnError, feed)
 	f.Version = getString(flds.feedVersion, r, flds.FldName(flds.feedVersion), false, false, "")
@@ -1724,6 +1725,10 @@ func createPathway(r []string, flds PathwayFields, feed *Feed, prefix string) (t
 
 	a.Mode = uint8(getRangeInt(flds.pathwayMode, r, flds.FldName(flds.pathwayMode), true, 1, 7))
 	a.Is_bidirectional = getBool(flds.isBidirectional, r, flds.FldName(flds.isBidirectional), true, false, feed.opts.UseDefValueOnError, feed)
+
+	if a.Mode == 7 && a.Is_bidirectional {
+		return nil, fmt.Errorf("bidirectional_exit_gate: pathway '%s' is an exit gate (mode=7) but is marked as bidirectional", a.Id)
+	}
 
 	length := getNullableFloat(flds.length, r, flds.FldName(flds.length), feed.opts.UseDefValueOnError, feed)
 	a.Length = length
