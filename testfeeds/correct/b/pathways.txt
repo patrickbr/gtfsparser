@@ -1,2 +1,2 @@
 pathway_id,from_stop_id,to_stop_id,pathway_mode,is_bidirectional,traversal_time,stair_count,max_slope, min_width,signposted_as,reversed_signposted_as
-PW1,TEST,TEST2,7,1,1,1,-45.44,2.3,"Bla", "Blubb"
+PW1,TEST,TEST2,7,0,1,1,-45.44,2.3,"Bla", "Blubb"

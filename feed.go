@@ -354,6 +354,7 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if feed.opts.ShowWarnings {
 		feed.warnDuplicateUrls()
 		feed.warnAgencyLangConsistency()
+		feed.warnBlockTrips()
 	}
 
 	return e
@@ -1015,72 +1016,6 @@ func (feed *Feed) parseTrips(path string, prefix string, filteredRoutes map[stri
 				}
 
 				feed.TripsAddFlds[reader.header[i]][tripId] = record[i]
-			}
-		}
-	}
-
-	if feed.opts.ShowWarnings {
-		blockIdRouteType := make(map[string]int16)
-		blocks := make(map[string][]*gtfs.Trip)
-
-		for _, trip := range feed.Trips {
-			// missing_bike_allowance
-			if trip.Route != nil && gtfs.GetTypeFromExtended(trip.Route.Type) == 4 && trip.Bikes_allowed == 0 {
-				feed.warn(fmt.Errorf("missing_bike_allowance: ferry trip '%s' does not specify bikes_allowed", trip.Id))
-			}
-
-			if trip.Block_id != nil {
-				bid := *trip.Block_id
-
-				// inconsistent route types within a block
-				if prevRt, ok := blockIdRouteType[bid]; ok {
-					if prevRt != trip.Route.Type {
-						feed.warn(fmt.Errorf("inconsistent_route_type_within_block: inconsistent route types for block_id '%s': found %d and %d",
-							bid, prevRt, trip.Route.Type))
-					}
-				} else {
-					blockIdRouteType[bid] = trip.Route.Type
-				}
-
-				// accumulate for overlap check
-				blocks[bid] = append(blocks[bid], trip)
-			}
-		}
-
-		// block_trips_with_overlapping_stop_times
-		for bid, trips := range blocks {
-			for i := 0; i < len(trips); i++ {
-				if len(trips[i].StopTimes) < 2 {
-					continue
-				}
-				aFirst := trips[i].StopTimes[0].Arrival_time()
-				aLast := trips[i].StopTimes[len(trips[i].StopTimes)-1].Departure_time()
-				if aFirst.Empty() || aLast.Empty() {
-					continue
-				}
-
-				for j := i + 1; j < len(trips); j++ {
-					if len(trips[j].StopTimes) < 2 {
-						continue
-					}
-					bFirst := trips[j].StopTimes[0].Arrival_time()
-					bLast := trips[j].StopTimes[len(trips[j].StopTimes)-1].Departure_time()
-					if bFirst.Empty() || bLast.Empty() {
-						continue
-					}
-
-					aStart := aFirst.SecondsSinceMidnight()
-					aEnd := aLast.SecondsSinceMidnight()
-					bStart := bFirst.SecondsSinceMidnight()
-					bEnd := bLast.SecondsSinceMidnight()
-
-					if aStart < bEnd && bStart < aEnd {
-						feed.warn(fmt.Errorf("block_trips_with_overlapping_stop_times: trips '%s' and '%s' in block '%s' have overlapping stop times (%02d:%02d-%02d:%02d and %02d:%02d-%02d:%02d)",
-							trips[i].Id, trips[j].Id, bid,
-							aFirst.Hour, aFirst.Minute, aLast.Hour, aLast.Minute,
-							bFirst.Hour, bFirst.Minute, bLast.Hour, bLast.Minute))
-					}
-				}
 			}
 		}
 	}
@@ -2556,6 +2491,72 @@ func (feed *Feed) warnAgencyLangConsistency() {
 			for agLang := range langSet {
 				if agLang != feedLang {
 					feed.warn(fmt.Errorf("feed_info_lang_and_agency_lang_mismatch: feed_lang '%s' does not match agency_lang '%s'", feedLang, agLang))
+				}
+			}
+		}
+	}
+}
+
+func (feed *Feed) warnBlockTrips() {
+	blockIdRouteType := make(map[string]int16)
+	blocks := make(map[string][]*gtfs.Trip)
+
+	for _, trip := range feed.Trips {
+		// missing_bike_allowance
+		if trip.Route != nil && gtfs.GetTypeFromExtended(trip.Route.Type) == 4 && trip.Bikes_allowed == 0 {
+			feed.warn(fmt.Errorf("missing_bike_allowance: ferry trip '%s' does not specify bikes_allowed", trip.Id))
+		}
+
+		if trip.Block_id != nil {
+			bid := *trip.Block_id
+
+			// inconsistent route types within a block
+			if prevRt, ok := blockIdRouteType[bid]; ok {
+				if prevRt != trip.Route.Type {
+					feed.warn(fmt.Errorf("inconsistent_route_type_within_block: inconsistent route types for block_id '%s': found %d and %d",
+						bid, prevRt, trip.Route.Type))
+				}
+			} else {
+				blockIdRouteType[bid] = trip.Route.Type
+			}
+
+			// accumulate for overlap check
+			blocks[bid] = append(blocks[bid], trip)
+		}
+	}
+
+	// block_trips_with_overlapping_stop_times
+	for bid, trips := range blocks {
+		for i := 0; i < len(trips); i++ {
+			if len(trips[i].StopTimes) < 2 {
+				continue
+			}
+			aFirst := trips[i].StopTimes[0].Arrival_time()
+			aLast := trips[i].StopTimes[len(trips[i].StopTimes)-1].Departure_time()
+			if aFirst.Empty() || aLast.Empty() {
+				continue
+			}
+
+			for j := i + 1; j < len(trips); j++ {
+				if len(trips[j].StopTimes) < 2 {
+					continue
+				}
+				bFirst := trips[j].StopTimes[0].Arrival_time()
+				bLast := trips[j].StopTimes[len(trips[j].StopTimes)-1].Departure_time()
+				if bFirst.Empty() || bLast.Empty() {
+					continue
+				}
+
+				aStart := aFirst.SecondsSinceMidnight()
+				aEnd := aLast.SecondsSinceMidnight()
+				bStart := bFirst.SecondsSinceMidnight()
+				bEnd := bLast.SecondsSinceMidnight()
+
+				if aStart < bEnd && bStart < aEnd {
+					feed.warn(fmt.Errorf("block_trips_with_overlapping_stop_times: trips '%s' and '%s' in block '%s' have overlapping stop times (%02d:%02d-%02d:%02d and %02d:%02d-%02d:%02d)",
+						trips[i].Id, trips[j].Id, bid,
+						aFirst.Hour, aFirst.Minute, aLast.Hour, aLast.Minute,
+						bFirst.Hour, bFirst.Minute, bLast.Hour, bLast.Minute))
 				}
 			}
 		}
