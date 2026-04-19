@@ -838,7 +838,6 @@ func createFeedInfo(r []string, flds FeedInfoFields, feed *Feed) (fi *gtfs.FeedI
 	f.Publisher_name = getString(flds.feedPublisherName, r, flds.FldName(flds.feedPublisherName), true, true, feed.opts.EmptyStringRepl)
 	f.Publisher_url = getURL(flds.feedPublisherUrl, r, flds, true, feed.opts.UseDefValueOnError, feed)
 	f.Lang = getIsoLangCode(flds.feedLang, r, flds.FldName(flds.feedLang), true, true, feed)
-	// f.Lang = getString(flds.feedLang, r, flds.FldName(flds.feedLang), true, true, feed.opts.EmptyStringRepl)
 	f.Start_date = getDate(flds.feedStartDate, r, flds, false, feed.opts.UseDefValueOnError, feed)
 	f.End_date = getDate(flds.feedEndDate, r, flds, false, feed.opts.UseDefValueOnError, feed)
 	f.Version = getString(flds.feedVersion, r, flds.FldName(flds.feedVersion), false, false, "")
