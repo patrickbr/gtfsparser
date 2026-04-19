@@ -16,6 +16,7 @@ import (
 	opath "path"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/klauspost/compress/zip"
 	"github.com/patrickbr/gtfsparser/gtfs"
@@ -357,6 +358,9 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		feed.warnBlockTrips()
 		feed.warnPathwayReachability()
 		feed.warnUnusedStations()
+		feed.warnUnusedShapesAndTrips()
+		feed.warnStopsWithoutStopTimes()
+		feed.warnExpiredCalendars()
 	}
 
 	return e
@@ -2801,6 +2805,84 @@ func (feed *Feed) warnUnusedStations() {
 			if _, ok := referenced[s.Id]; !ok {
 				feed.warn(fmt.Errorf("unused_station: stop '%s' has location_type=1 (station) but is not referenced as a parent_station by any stop",
 					s.Id))
+			}
+		}
+	}
+}
+
+func (feed *Feed) warnUnusedShapesAndTrips() {
+	// collect shape ids and trip ids referenced by trips and stop times
+	referencedShapes := make(map[string]struct{})
+	tripsWithStopTimes := make(map[string]struct{})
+
+	for _, trip := range feed.Trips {
+		if trip.Shape != nil {
+			referencedShapes[trip.Shape.Id] = struct{}{}
+		}
+		if len(trip.StopTimes) > 0 {
+			tripsWithStopTimes[trip.Id] = struct{}{}
+		}
+	}
+
+	// unused_shape
+	for id := range feed.Shapes {
+		if _, ok := referencedShapes[id]; !ok {
+			feed.warn(fmt.Errorf("unused_shape: shape '%s' is defined in shapes.txt but not referenced by any trip", id))
+		}
+	}
+
+	// unused_trip
+	for id := range feed.Trips {
+		if _, ok := tripsWithStopTimes[id]; !ok {
+			feed.warn(fmt.Errorf("unused_trip: trip '%s' is not referenced by any stop time", id))
+		}
+	}
+}
+
+func (feed *Feed) warnStopsWithoutStopTimes() {
+	referencedStops := make(map[string]struct{})
+	for _, trip := range feed.Trips {
+		for i := range trip.StopTimes {
+			if s := trip.StopTimes[i].Stop(); s != nil {
+				referencedStops[s.Id] = struct{}{}
+			}
+		}
+	}
+
+	for _, stop := range feed.Stops {
+		// only check stops/platforms (location_type=0), not stations, entrances etc.
+		if stop.Location_type != 0 {
+			continue
+		}
+		if _, ok := referencedStops[stop.Id]; !ok {
+			feed.warn(fmt.Errorf("stop_without_stop_time: stop '%s' ('%s') is not referenced by any stop time",
+				stop.Id, stop.Name))
+		}
+	}
+}
+
+func (feed *Feed) warnExpiredCalendars() {
+	now := time.Now()
+
+	for _, svc := range feed.Services {
+		if svc == nil {
+			continue
+		}
+
+		// check calendar.txt-style services with explicit date ranges
+		if !svc.End_date().IsEmpty() && svc.End_date().GetTime().Before(now) {
+			feed.warn(fmt.Errorf("expired_calendar: service '%s' end date %s is in the past",
+				svc.Id(), svc.End_date().GetTime().Format("20060102")))
+			continue
+		}
+
+		// check calendar_dates.txt-style services: warn if no active date is
+		// in the future (GetFirstActiveDate returns empty if all dates are past)
+		if svc.End_date().IsEmpty() {
+			lastActive := svc.GetLastActiveDate()
+			if !lastActive.IsEmpty() && lastActive.GetTime().Before(now) {
+				feed.warn(fmt.Errorf("expired_calendar: service '%s' has no active dates in the future (last active: %s)",
+					svc.Id(), lastActive.GetTime().Format("20060102")))
 			}
 		}
 	}
