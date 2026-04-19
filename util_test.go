@@ -159,3 +159,77 @@ func containsStr(s, substr string) bool {
 			return false
 		}())
 }
+
+func TestContainsAsWord(t *testing.T) {
+	tests := []struct {
+		name  string
+		long  string
+		short string
+		want  bool
+	}{
+		// basic matches
+		{"exact match", "E", "E", true},
+		{"word at start", "E Linie nach Hause", "E", true},
+		{"word at end", "Linie nach E", "E", true},
+		{"word in middle", "Linie E nach Hause", "E", true},
+		{"multi-char word match", "Route 14 downtown", "14", true},
+		{"full word match", "Route Judah downtown", "Judah", true},
+
+		// must not match substrings within words
+		{"substring of word at start", "Neuenheim Technologiepark", "E", false},
+		{"substring in middle of word", "Berliner Platz", "E", false},
+		{"substring at end of word", "Straße", "E", false},
+		{"short inside longer word", "Route", "out", false},
+		{"number inside longer number", "Route 1414", "14", false},
+
+		// real-world cases from the bug report
+		{"Neuenheim long name", "Neuenheim Technologiepark - Handschuhsheim Hans-Thoma-Platz", "E", false},
+		{"Berliner Platz long name", "Berliner Platz, Bf LU Mitte - Maudach Kleestraße", "E", false},
+		{"Leuschnerstraße long name", "Hans-Warsch-Platz - Leuschnerstraße", "E", false},
+		{"Mühlaustraße long name", "Mühlaustraße - Karl-Dillinger-Straße", "E", false},
+
+		// good GTFS examples from spec
+		{"Judah", "Judah", "N", false},
+		{"ML King Jr Blvd", "ML King Jr Blvd", "6", false},
+		{"Boulevard Saint Laurent", "Boulevard Saint Laurent", "55", false},
+
+		// bad GTFS examples from spec - these should match
+		{"604 in 604", "604", "604", true},
+		{"Route 14 contains 14", "Route 14", "14", true},
+		{"Route 2 contains 2", "Route 2: Bellows Falls In-Town", "2", true},
+
+		// case insensitivity
+		{"case insensitive match", "linie S nach hause", "s", true},
+		{"case insensitive no match", "Straße", "s", false},
+
+		// boundary conditions
+		{"empty short", "anything", "", false},
+		{"empty long", "", "E", false},
+		{"both empty", "", "", false},
+		{"short longer than long", "hi", "hello", false},
+		{"hyphen boundary before", "Linie-E nach Hause", "E", true},
+		{"hyphen boundary after", "Linie E-Bahn", "E", true},
+		{"comma boundary", "Linie,E,Bahn", "E", true},
+		{"space boundaries", " E ", "E", true},
+
+		// multi-char short names
+		{"RE at word boundary", "RE Schnellzug", "RE", true},
+		{"RE inside word", "REgionalzug", "RE", false},
+		{"ICE standalone", "ICE nach Berlin", "ICE", true},
+		{"ICE inside word", "NICE city", "ICE", false},
+
+		// unicode
+		{"umlaut word match", "Straße nach Köln", "Köln", true},
+		{"umlaut no substring", "Köln", "ln", false},
+		{"umlaut boundary", "München-Köln", "Köln", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := containsAsWord(tt.long, tt.short)
+			if got != tt.want {
+				t.Errorf("containsAsWord(%q, %q) = %v, want %v", tt.long, tt.short, got, tt.want)
+			}
+		})
+	}
+}

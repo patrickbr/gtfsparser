@@ -3,6 +3,7 @@ package gtfsparser
 import (
 	"fmt"
 	"math"
+	"strings"
 	"unicode"
 )
 
@@ -34,4 +35,35 @@ func warnNearOriginOrPole(lat float64, lon float64, context string) error {
 		return fmt.Errorf("point_near_pole: %s point is too close to the North or South Pole", context)
 	}
 	return nil
+}
+
+func containsAsWord(long, short string) bool {
+	lowerLong := []rune(strings.ToLower(long))
+	lowerShort := []rune(strings.ToLower(short))
+
+	if len(lowerShort) == 0 {
+		return false
+	}
+
+	for i := 0; i <= len(lowerLong)-len(lowerShort); i++ {
+		match := true
+		for j := 0; j < len(lowerShort); j++ {
+			if lowerLong[i+j] != lowerShort[j] {
+				match = false
+				break
+			}
+		}
+		if !match {
+			continue
+		}
+
+		before := i == 0 || (!unicode.IsLetter(lowerLong[i-1]) && !unicode.IsDigit(lowerLong[i-1]))
+		end := i + len(lowerShort)
+		after := end == len(lowerLong) || (!unicode.IsLetter(lowerLong[end]) && !unicode.IsDigit(lowerLong[end]))
+
+		if before && after {
+			return true
+		}
+	}
+	return false
 }

@@ -355,6 +355,8 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		feed.warnDuplicateUrls()
 		feed.warnAgencyLangConsistency()
 		feed.warnBlockTrips()
+		feed.warnPathwayReachability()
+		feed.warnUnusedStations()
 	}
 
 	return e
@@ -794,8 +796,9 @@ func (feed *Feed) parseRoutes(path string, prefix string, filtered map[string]st
 				feed.warn(fmt.Errorf("route_short_name_too_long: route '%s' has a short name longer than 12 characters ('%s')", route.Id, route.Short_name))
 			}
 			if len(route.Short_name) > 0 && len(route.Long_name) > 0 &&
-				strings.Contains(strings.ToLower(route.Long_name), strings.ToLower(route.Short_name)) {
-				feed.warn(fmt.Errorf("route_long_name_contains_short_name: route '%s' long name ('%s') contains short name ('%s')", route.Id, route.Long_name, route.Short_name))
+				containsAsWord(route.Long_name, route.Short_name) {
+				feed.warn(fmt.Errorf("route_long_name_contains_short_name: route '%s' long name ('%s') contains short name ('%s')",
+					route.Id, route.Long_name, route.Short_name))
 			}
 			if len(route.Desc) > 0 &&
 				(strings.EqualFold(route.Desc, route.Short_name) || strings.EqualFold(route.Desc, route.Long_name)) {
@@ -876,6 +879,16 @@ func (feed *Feed) parseCalendar(path string, prefix string) (err error) {
 						service.SetEnd_date(feed.opts.DateFilterEnd)
 						// note: because of the check above, Start_date is guaranteed to <= DateFilterEnd, so our service remains valid
 					}
+				}
+			}
+
+			if feed.opts.ShowWarnings {
+				if !service.Start_date().IsEmpty() && !service.End_date().IsEmpty() &&
+					service.Start_date().GetTime().After(service.End_date().GetTime()) {
+					feed.warn(fmt.Errorf("start_and_end_range_out_of_order: service '%s' has start_date (%s) after end_date (%s)",
+						service.Id(),
+						service.Start_date().GetTime().Format("20060102"),
+						service.End_date().GetTime().Format("20060102")))
 				}
 			}
 		}
@@ -1320,6 +1333,18 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 			sort.Sort(trip.StopTimes)
 			e = feed.checkStopTimeMeasure(trip, &feed.opts)
 			feed.NumStopTimes += len(trip.StopTimes)
+
+			if feed.opts.ShowWarnings && len(trip.StopTimes) > 0 {
+				first := trip.StopTimes[0]
+				last := trip.StopTimes[len(trip.StopTimes)-1]
+				if first.Arrival_time().Empty() || first.Departure_time().Empty() {
+					feed.warn(fmt.Errorf("missing_trip_edge: trip '%s' first stop (seq=%d) is missing arrival_time or departure_time", trip.Id, first.Sequence()))
+				}
+				if len(trip.StopTimes) > 1 && (last.Arrival_time().Empty() || last.Departure_time().Empty()) {
+					feed.warn(fmt.Errorf("missing_trip_edge: trip '%s' last stop (seq=%d) is missing arrival_time or departure_time", trip.Id, last.Sequence()))
+				}
+			}
+
 			if e != nil {
 				break
 			}
@@ -1388,6 +1413,58 @@ func (feed *Feed) parseFrequencies(path string, prefix string, filteredTrips map
 				}
 
 				feed.FrequenciesAddFlds[reader.header[i]][trip.Id][freq] = record[i]
+			}
+		}
+
+		if feed.opts.ShowWarnings && freq != nil {
+			start := freq.Start_time.SecondsSinceMidnight()
+			end := freq.End_time.SecondsSinceMidnight()
+			if start == end {
+				feed.warn(fmt.Errorf("start_and_end_range_equal: frequency for trip '%s' has equal start_time and end_time (%02d:%02d:%02d)",
+					trip.Id, freq.Start_time.Hour, freq.Start_time.Minute, freq.Start_time.Second))
+			} else if start > end {
+				feed.warn(fmt.Errorf("start_and_end_range_out_of_order: frequency for trip '%s' has start_time (%02d:%02d:%02d) after end_time (%02d:%02d:%02d)",
+					trip.Id, freq.Start_time.Hour, freq.Start_time.Minute, freq.Start_time.Second,
+					freq.End_time.Hour, freq.End_time.Minute, freq.End_time.Second))
+			}
+		}
+	}
+
+	if feed.opts.ShowWarnings {
+		// group frequencies by trip id
+		type freqRange struct {
+			start int
+			end   int
+		}
+		tripFreqs := make(map[string][]freqRange)
+		for _, trip := range feed.Trips {
+			if trip.Frequencies != nil {
+				for _, f := range *trip.Frequencies {
+					tripFreqs[trip.Id] = append(tripFreqs[trip.Id], freqRange{
+						start: f.Start_time.SecondsSinceMidnight(),
+						end:   f.End_time.SecondsSinceMidnight(),
+					})
+				}
+			}
+		}
+		for tripId, freqs := range tripFreqs {
+			for i := 0; i < len(freqs); i++ {
+				for j := i + 1; j < len(freqs); j++ {
+					x, y := freqs[i], freqs[j]
+					// ensure x is the earlier one
+					if y.start < x.start {
+						x, y = y, x
+					}
+					// overlap: x.start <= y.start && y.start < x.end
+					if x.start <= y.start && y.start < x.end {
+						feed.warn(fmt.Errorf("overlapping_frequency: trip '%s' has overlapping frequencies (%02d:%02d-%02d:%02d and %02d:%02d-%02d:%02d)",
+							tripId,
+							x.start/3600, (x.start%3600)/60,
+							x.end/3600, (x.end%3600)/60,
+							y.start/3600, (y.start%3600)/60,
+							y.end/3600, (y.end%3600)/60))
+					}
+				}
 			}
 		}
 	}
@@ -1718,8 +1795,36 @@ func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[stri
 		}
 		feed.Pathways[pw.Id] = pw
 
-		if feed.opts.ShowWarnings && !isValidId(pw.Id) {
-			feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: pathway_id '%s' contains non-ASCII or non-printable characters", pw.Id))
+		if feed.opts.ShowWarnings {
+			if !isValidId(pw.Id) {
+				feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: pathway_id '%s' contains non-ASCII or non-printable characters", pw.Id))
+			}
+			for _, endpoint := range []*gtfs.Stop{pw.From_stop, pw.To_stop} {
+				if endpoint == nil {
+					continue
+				}
+				// pathway_to_wrong_location_type: endpoint must not be a station (location_type=1)
+				if endpoint.Location_type == 1 {
+					feed.warn(fmt.Errorf("pathway_to_wrong_location_type: pathway '%s' has an endpoint stop '%s' which is a station (location_type=1); pathways must connect platforms, entrances, generic nodes or boarding areas",
+						pw.Id, endpoint.Id))
+				}
+				// pathway_to_platform_with_boarding_areas: endpoint must not be a platform
+				// that itself has boarding areas (location_type=0 with children of type 4)
+				if endpoint.Location_type == 0 {
+					for _, s := range feed.Stops {
+						if s.Location_type == 4 && s.Parent_station == endpoint {
+							feed.warn(fmt.Errorf("pathway_to_platform_with_boarding_areas: pathway '%s' has an endpoint platform '%s' which has boarding areas; pathways should be assigned to the boarding areas instead",
+								pw.Id, endpoint.Id))
+							break
+						}
+					}
+				}
+			}
+
+			if pw.From_stop != nil && pw.To_stop != nil && pw.From_stop == pw.To_stop {
+				feed.warn(fmt.Errorf("pathway_loop: pathway '%s' starts and ends at the same location '%s'",
+					pw.Id, pw.From_stop.Id))
+			}
 		}
 
 		for _, i := range addFlds {
@@ -2034,6 +2139,13 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 						(fi.Contact_url == nil || fi.Contact_url.String() == "") {
 						feed.warn(fmt.Errorf("missing_feed_contact_email_and_url: feed_info provides neither feed_contact_email nor feed_contact_url"))
 					}
+				}
+
+				if !fi.Start_date.IsEmpty() && !fi.End_date.IsEmpty() &&
+					fi.Start_date.GetTime().After(fi.End_date.GetTime()) {
+					feed.warn(fmt.Errorf("start_and_end_range_out_of_order: feed_info has feed_start_date (%s) after feed_end_date (%s)",
+						fi.Start_date.GetTime().Format("20060102"),
+						fi.End_date.GetTime().Format("20060102")))
 				}
 			}
 		}
@@ -2558,6 +2670,137 @@ func (feed *Feed) warnBlockTrips() {
 						aFirst.Hour, aFirst.Minute, aLast.Hour, aLast.Minute,
 						bFirst.Hour, bFirst.Minute, bLast.Hour, bLast.Minute))
 				}
+			}
+		}
+	}
+}
+
+func (feed *Feed) warnPathwayReachability() {
+	if len(feed.Pathways) == 0 {
+		return
+	}
+
+	fwd := make(map[string][]string)
+	bwd := make(map[string][]string)
+	neighbours := make(map[string]map[string]struct{})
+
+	for _, pw := range feed.Pathways {
+		if pw.From_stop == nil || pw.To_stop == nil {
+			continue
+		}
+		fid := pw.From_stop.Id
+		tid := pw.To_stop.Id
+		fwd[fid] = append(fwd[fid], tid)
+		bwd[tid] = append(bwd[tid], fid)
+		if pw.Is_bidirectional {
+			fwd[tid] = append(fwd[tid], fid)
+			bwd[fid] = append(bwd[fid], tid)
+		}
+
+		// accumulate neighbours for dangling generic node check
+		for _, stop := range []*gtfs.Stop{pw.From_stop, pw.To_stop} {
+			if stop.Location_type == 3 {
+				if _, ok := neighbours[stop.Id]; !ok {
+					neighbours[stop.Id] = make(map[string]struct{})
+				}
+			}
+		}
+		if pw.From_stop.Location_type == 3 {
+			neighbours[pw.From_stop.Id][tid] = struct{}{}
+		}
+		if pw.To_stop.Location_type == 3 {
+			neighbours[pw.To_stop.Id][fid] = struct{}{}
+		}
+	}
+
+	// pathway_dangling_generic_node: also catch generic nodes with no pathways at all
+	for _, s := range feed.Stops {
+		if s.Location_type == 3 {
+			if _, ok := neighbours[s.Id]; !ok {
+				neighbours[s.Id] = make(map[string]struct{})
+			}
+		}
+	}
+	for id, nbrs := range neighbours {
+		if len(nbrs) <= 1 {
+			feed.warn(fmt.Errorf("pathway_dangling_generic_node: generic node '%s' has only %d incident location(s) in the pathway graph and is therefore useless",
+				id, len(nbrs)))
+		}
+	}
+
+	entrances := make(map[string]struct{})
+	candidates := make(map[string]*gtfs.Stop)
+
+	for _, s := range feed.Stops {
+		switch s.Location_type {
+		case 2:
+			entrances[s.Id] = struct{}{}
+		case 0:
+			hasBoardingAreas := false
+			for _, other := range feed.Stops {
+				if other.Location_type == 4 && other.Parent_station == s {
+					hasBoardingAreas = true
+					break
+				}
+			}
+			if !hasBoardingAreas {
+				candidates[s.Id] = s
+			}
+		case 3, 4:
+			candidates[s.Id] = s
+		}
+	}
+
+	if len(entrances) == 0 {
+		return
+	}
+
+	reachableFromEntrance := bfsReach(entrances, fwd)
+	reachableToEntrance := bfsReach(entrances, bwd)
+
+	for id, stop := range candidates {
+		if _, ok := reachableFromEntrance[id]; !ok {
+			feed.warn(fmt.Errorf("pathway_unreachable_location: stop '%s' (location_type=%d) is not reachable from any entrance",
+				stop.Id, stop.Location_type))
+		} else if _, ok := reachableToEntrance[id]; !ok {
+			feed.warn(fmt.Errorf("pathway_unreachable_location: stop '%s' (location_type=%d) cannot reach any exit",
+				stop.Id, stop.Location_type))
+		}
+	}
+}
+
+func bfsReach(seeds map[string]struct{}, graph map[string][]string) map[string]struct{} {
+	visited := make(map[string]struct{})
+	queue := make([]string, 0, len(seeds))
+	for id := range seeds {
+		visited[id] = struct{}{}
+		queue = append(queue, id)
+	}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		for _, next := range graph[cur] {
+			if _, seen := visited[next]; !seen {
+				visited[next] = struct{}{}
+				queue = append(queue, next)
+			}
+		}
+	}
+	return visited
+}
+
+func (feed *Feed) warnUnusedStations() {
+	referenced := make(map[string]struct{})
+	for _, s := range feed.Stops {
+		if s.Parent_station != nil {
+			referenced[s.Parent_station.Id] = struct{}{}
+		}
+	}
+	for _, s := range feed.Stops {
+		if s.Location_type == 1 {
+			if _, ok := referenced[s.Id]; !ok {
+				feed.warn(fmt.Errorf("unused_station: stop '%s' has location_type=1 (station) but is not referenced as a parent_station by any stop",
+					s.Id))
 			}
 		}
 	}
