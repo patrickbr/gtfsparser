@@ -15,15 +15,6 @@ func isValidId(s string) bool {
 	return true
 }
 
-func isASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] > unicode.MaxASCII {
-			return false
-		}
-	}
-	return true
-}
-
 func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
 	const R = 6371.0 // Earth radius in km
 	dLat := (lat2 - lat1) * math.Pi / 180.0
@@ -38,9 +29,9 @@ func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
 
 func warnNearOriginOrPole(lat float64, lon float64, context string) error {
 	if math.Abs(lat) < 0.001 && math.Abs(lon) < 0.001 {
-		return fmt.Errorf("%s: point is too close to origin (0, 0)", context)
+		return fmt.Errorf("point_near_origin: %s point is too close to origin (0, 0)", context)
 	} else if math.Abs(lat) > 89.999 {
-		return fmt.Errorf("%s: point is too close to the North or South Pole", context)
+		return fmt.Errorf("point_near_pole: %s point is too close to the North or South Pole", context)
 	}
 	return nil
 }
