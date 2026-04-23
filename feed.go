@@ -97,6 +97,7 @@ type ParseOptions struct {
 	EmptyStringRepl              string
 	ZipFix                       bool
 	ShowWarnings                 bool
+	ShowWarningsExpensive        bool
 	DropShapes                   bool
 	KeepAddFlds                  bool
 	DateFilterStart              gtfs.Date
@@ -218,7 +219,7 @@ func NewFeed() *Feed {
 		NumShpPoints:          0,
 		NumStopTimes:          0,
 		fastParsePossible:     true,
-		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, gtfs.Date{}, gtfs.Date{}, make([]Polygon, 0), false, make(map[int16]bool, 0), make(map[int16]bool, 0), false, false, false, false},
+		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, false, gtfs.Date{}, gtfs.Date{}, make([]Polygon, 0), false, make(map[int16]bool, 0), make(map[int16]bool, 0), false, false, false, false},
 	}
 	g.lastString = &g.emptyString
 
@@ -259,6 +260,8 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	// if these are referenced later, we quietly ignore the error like
 	// with -De
 	geofilteredZones := make(map[string]struct{}, 0)
+
+	hasBoardingArea := make(map[string]bool)
 
 	e = feed.parseAgencies(path, prefix)
 	if e == nil {
@@ -320,7 +323,13 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseTransfers(path, prefix, geofilteredStops, filteredRoutes)
 	}
 	if e == nil {
-		e = feed.parsePathways(path, prefix, geofilteredStops)
+		for _, s := range feed.Stops {
+			if s.Location_type == 4 && s.Parent_station != nil {
+				hasBoardingArea[s.Parent_station.Id] = true
+			}
+		}
+
+		e = feed.parsePathways(path, prefix, geofilteredStops, hasBoardingArea)
 	}
 	if e == nil {
 		e = feed.parseAttributions(path, prefix, filteredRoutes, filteredTrips)
@@ -355,12 +364,14 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 	if feed.opts.ShowWarnings {
 		feed.warnDuplicateUrls()
 		feed.warnAgencyLangConsistency()
-		feed.warnBlockTrips()
-		feed.warnPathwayReachability()
 		feed.warnUnusedStations()
-		feed.warnUnusedShapesAndTrips()
-		feed.warnStopsWithoutStopTimes()
 		feed.warnExpiredCalendars()
+	}
+
+	if feed.opts.ShowWarningsExpensive {
+		feed.warnPathwayReachability(hasBoardingArea)
+		feed.warnUnusedShapesAndTripsAndStops()
+		feed.warnBlockTrips()
 	}
 
 	return e
@@ -1022,8 +1033,13 @@ func (feed *Feed) parseTrips(path string, prefix string, filteredRoutes map[stri
 			}
 		}
 		feed.Trips[tripId] = trip
-		if feed.opts.ShowWarnings && !isValidId(tripId) {
-			feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: trip_id '%s' contains non-ASCII or non-printable characters", tripId))
+		if feed.opts.ShowWarnings {
+			if !isValidId(tripId) {
+				feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: trip_id '%s' contains non-ASCII or non-printable characters", tripId))
+			}
+			if trip.Route != nil && gtfs.GetTypeFromExtended(trip.Route.Type) == 4 && trip.Bikes_allowed == 0 {
+				feed.warn(fmt.Errorf("missing_bike_allowance: ferry trip '%s' does not specify bikes_allowed", tripId))
+			}
 		}
 
 		for _, i := range addFlds {
@@ -1434,7 +1450,7 @@ func (feed *Feed) parseFrequencies(path string, prefix string, filteredTrips map
 		}
 	}
 
-	if feed.opts.ShowWarnings {
+	if feed.opts.ShowWarningsExpensive {
 		// group frequencies by trip id
 		type freqRange struct {
 			start int
@@ -1451,23 +1467,20 @@ func (feed *Feed) parseFrequencies(path string, prefix string, filteredTrips map
 				}
 			}
 		}
+
 		for tripId, freqs := range tripFreqs {
-			for i := 0; i < len(freqs); i++ {
-				for j := i + 1; j < len(freqs); j++ {
-					x, y := freqs[i], freqs[j]
-					// ensure x is the earlier one
-					if y.start < x.start {
-						x, y = y, x
-					}
-					// overlap: x.start <= y.start && y.start < x.end
-					if x.start <= y.start && y.start < x.end {
-						feed.warn(fmt.Errorf("overlapping_frequency: trip '%s' has overlapping frequencies (%02d:%02d-%02d:%02d and %02d:%02d-%02d:%02d)",
-							tripId,
-							x.start/3600, (x.start%3600)/60,
-							x.end/3600, (x.end%3600)/60,
-							y.start/3600, (y.start%3600)/60,
-							y.end/3600, (y.end%3600)/60))
-					}
+			sort.Slice(freqs, func(i, j int) bool {
+				return freqs[i].start < freqs[j].start
+			})
+			for i := 1; i < len(freqs); i++ {
+				x, y := freqs[i-1], freqs[i]
+				if y.start < x.end {
+					feed.warn(fmt.Errorf("overlapping_frequency: trip '%s' has overlapping frequencies (%02d:%02d-%02d:%02d and %02d:%02d-%02d:%02d)",
+						tripId,
+						x.start/3600, (x.start%3600)/60,
+						x.end/3600, (x.end%3600)/60,
+						y.start/3600, (y.start%3600)/60,
+						y.end/3600, (y.end%3600)/60))
 				}
 			}
 		}
@@ -1737,7 +1750,7 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 	return e
 }
 
-func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[string]struct{}) (err error) {
+func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[string]struct{}, hasBoardingArea map[string]bool) (err error) {
 	file, e := feed.getFile(path, "pathways.txt")
 
 	if e != nil {
@@ -1814,14 +1827,10 @@ func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[stri
 				}
 				// pathway_to_platform_with_boarding_areas: endpoint must not be a platform
 				// that itself has boarding areas (location_type=0 with children of type 4)
-				if endpoint.Location_type == 0 {
-					for _, s := range feed.Stops {
-						if s.Location_type == 4 && s.Parent_station == endpoint {
-							feed.warn(fmt.Errorf("pathway_to_platform_with_boarding_areas: pathway '%s' has an endpoint platform '%s' which has boarding areas; pathways should be assigned to the boarding areas instead",
-								pw.Id, endpoint.Id))
-							break
-						}
-					}
+				if endpoint.Location_type == 0 && hasBoardingArea[endpoint.Id] {
+					feed.warn(fmt.Errorf("pathway_to_platform_with_boarding_areas: pathway '%s' has an endpoint platform '%s' which has boarding areas; pathways should be assigned to the boarding areas instead",
+						pw.Id, endpoint.Id))
+					break
 				}
 			}
 
@@ -2135,14 +2144,12 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 			feed.FeedInfos = append(feed.FeedInfos, fi)
 
 			if feed.opts.ShowWarnings {
-				for _, fi := range feed.FeedInfos {
-					if (fi.Start_date.IsEmpty()) != (fi.End_date.IsEmpty()) {
-						feed.warn(fmt.Errorf("missing_feed_info_date: feed_info has only one of feed_start_date / feed_end_date; both should be provided if either is set"))
-					}
-					if (fi.Contact_email == nil || fi.Contact_email.Address == "") &&
-						(fi.Contact_url == nil || fi.Contact_url.String() == "") {
-						feed.warn(fmt.Errorf("missing_feed_contact_email_and_url: feed_info provides neither feed_contact_email nor feed_contact_url"))
-					}
+				if (fi.Start_date.IsEmpty()) != (fi.End_date.IsEmpty()) {
+					feed.warn(fmt.Errorf("missing_feed_info_date: feed_info has only one of feed_start_date / feed_end_date; both should be provided if either is set"))
+				}
+				if (fi.Contact_email == nil || fi.Contact_email.Address == "") &&
+					(fi.Contact_url == nil || fi.Contact_url.String() == "") {
+					feed.warn(fmt.Errorf("missing_feed_contact_email_and_url: feed_info provides neither feed_contact_email nor feed_contact_url"))
 				}
 
 				if !fi.Start_date.IsEmpty() && !fi.End_date.IsEmpty() &&
@@ -2618,11 +2625,6 @@ func (feed *Feed) warnBlockTrips() {
 	blocks := make(map[string][]*gtfs.Trip)
 
 	for _, trip := range feed.Trips {
-		// missing_bike_allowance
-		if trip.Route != nil && gtfs.GetTypeFromExtended(trip.Route.Type) == 4 && trip.Bikes_allowed == 0 {
-			feed.warn(fmt.Errorf("missing_bike_allowance: ferry trip '%s' does not specify bikes_allowed", trip.Id))
-		}
-
 		if trip.Block_id != nil {
 			bid := *trip.Block_id
 
@@ -2679,7 +2681,7 @@ func (feed *Feed) warnBlockTrips() {
 	}
 }
 
-func (feed *Feed) warnPathwayReachability() {
+func (feed *Feed) warnPathwayReachability(hasBoardingArea map[string]bool) {
 	if len(feed.Pathways) == 0 {
 		return
 	}
@@ -2717,7 +2719,7 @@ func (feed *Feed) warnPathwayReachability() {
 		}
 	}
 
-	// pathway_dangling_generic_node: also catch generic nodes with no pathways at all
+	// pathway_dangling_generic_node: catch generic nodes with no pathways at all
 	for _, s := range feed.Stops {
 		if s.Location_type == 3 {
 			if _, ok := neighbours[s.Id]; !ok {
@@ -2740,14 +2742,7 @@ func (feed *Feed) warnPathwayReachability() {
 		case 2:
 			entrances[s.Id] = struct{}{}
 		case 0:
-			hasBoardingAreas := false
-			for _, other := range feed.Stops {
-				if other.Location_type == 4 && other.Parent_station == s {
-					hasBoardingAreas = true
-					break
-				}
-			}
-			if !hasBoardingAreas {
+			if !hasBoardingArea[s.Id] {
 				candidates[s.Id] = s
 			}
 		case 3, 4:
@@ -2774,16 +2769,14 @@ func (feed *Feed) warnPathwayReachability() {
 }
 
 func bfsReach(seeds map[string]struct{}, graph map[string][]string) map[string]struct{} {
-	visited := make(map[string]struct{})
-	queue := make([]string, 0, len(seeds))
+	visited := make(map[string]struct{}, len(seeds)*4)
+	queue := make([]string, 0, len(seeds)*4)
 	for id := range seeds {
 		visited[id] = struct{}{}
 		queue = append(queue, id)
 	}
-	for len(queue) > 0 {
-		cur := queue[0]
-		queue = queue[1:]
-		for _, next := range graph[cur] {
+	for i := 0; i < len(queue); i++ {
+		for _, next := range graph[queue[i]] {
 			if _, seen := visited[next]; !seen {
 				visited[next] = struct{}{}
 				queue = append(queue, next)
@@ -2794,63 +2787,52 @@ func bfsReach(seeds map[string]struct{}, graph map[string][]string) map[string]s
 }
 
 func (feed *Feed) warnUnusedStations() {
-	referenced := make(map[string]struct{})
+	referenced := make(map[string]struct{}, len(feed.Stops))
+	stations := make([]*gtfs.Stop, 0)
 	for _, s := range feed.Stops {
 		if s.Parent_station != nil {
 			referenced[s.Parent_station.Id] = struct{}{}
 		}
-	}
-	for _, s := range feed.Stops {
 		if s.Location_type == 1 {
-			if _, ok := referenced[s.Id]; !ok {
-				feed.warn(fmt.Errorf("unused_station: stop '%s' has location_type=1 (station) but is not referenced as a parent_station by any stop",
-					s.Id))
-			}
+			stations = append(stations, s)
+		}
+	}
+	for _, s := range stations {
+		if _, ok := referenced[s.Id]; !ok {
+			feed.warn(fmt.Errorf("unused_station: stop '%s' has location_type=1 (station) but is not referenced as a parent_station by any stop", s.Id))
 		}
 	}
 }
-
-func (feed *Feed) warnUnusedShapesAndTrips() {
-	// collect shape ids and trip ids referenced by trips and stop times
+func (feed *Feed) warnUnusedShapesAndTripsAndStops() {
 	referencedShapes := make(map[string]struct{})
 	tripsWithStopTimes := make(map[string]struct{})
+	referencedStops := make(map[string]struct{})
 
 	for _, trip := range feed.Trips {
 		if trip.Shape != nil {
 			referencedShapes[trip.Shape.Id] = struct{}{}
+		}
+		for i := range trip.StopTimes {
+			if s := trip.StopTimes[i].Stop(); s != nil {
+				referencedStops[s.Id] = struct{}{}
+			}
 		}
 		if len(trip.StopTimes) > 0 {
 			tripsWithStopTimes[trip.Id] = struct{}{}
 		}
 	}
 
-	// unused_shape
 	for id := range feed.Shapes {
 		if _, ok := referencedShapes[id]; !ok {
 			feed.warn(fmt.Errorf("unused_shape: shape '%s' is defined in shapes.txt but not referenced by any trip", id))
 		}
 	}
-
-	// unused_trip
 	for id := range feed.Trips {
 		if _, ok := tripsWithStopTimes[id]; !ok {
 			feed.warn(fmt.Errorf("unused_trip: trip '%s' is not referenced by any stop time", id))
 		}
 	}
-}
-
-func (feed *Feed) warnStopsWithoutStopTimes() {
-	referencedStops := make(map[string]struct{})
-	for _, trip := range feed.Trips {
-		for i := range trip.StopTimes {
-			if s := trip.StopTimes[i].Stop(); s != nil {
-				referencedStops[s.Id] = struct{}{}
-			}
-		}
-	}
-
 	for _, stop := range feed.Stops {
-		// only check stops/platforms (location_type=0), not stations, entrances etc.
 		if stop.Location_type != 0 {
 			continue
 		}
