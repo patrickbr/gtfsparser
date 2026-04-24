@@ -975,7 +975,7 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 	a.Continuous_drop_off = int8(getRangeIntWithDefault(flds.continuousDropOff, r, flds.FldName(flds.continuousDropOff), 0, 3, 1, feed.opts.UseDefValueOnError, feed))
 
 	if feed.opts.ShowWarnings && !hasValidContrast(a.Text_color, a.Color) {
-		feed.warn(fmt.Errorf("route_color_contrast: Insufficient contrast between text_color #%s and route_color #%s for route %s", a.Text_color, a.Color, a.Id))
+		feed.warnLimited("route_color_contrast", fmt.Errorf("route_color_contrast: Insufficient contrast between text_color #%s and route_color #%s for route %s", a.Text_color, a.Color, a.Id))
 	}
 
 	return a, nil

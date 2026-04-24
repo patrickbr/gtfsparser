@@ -167,6 +167,7 @@ type Feed struct {
 	Attributions []*gtfs.Attribution
 
 	ErrorStats   ErrStats
+	warnCounts   map[string]int
 	NumShpPoints int
 	NumStopTimes int
 
@@ -216,6 +217,7 @@ func NewFeed() *Feed {
 		FeedInfosAddFlds:      make(map[string]map[*gtfs.FeedInfo]string),
 		AttributionsAddFlds:   make(map[string]map[*gtfs.Attribution]string),
 		ErrorStats:            ErrStats{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		warnCounts:            make(map[string]int),
 		NumShpPoints:          0,
 		NumStopTimes:          0,
 		fastParsePossible:     true,
@@ -229,6 +231,7 @@ func NewFeed() *Feed {
 // SetParseOpts sets the ParseOptions for this feed
 func (feed *Feed) SetParseOpts(opts ParseOptions) {
 	feed.opts = opts
+	feed.opts.ShowWarnings = feed.opts.ShowWarnings || feed.opts.ShowWarningsExpensive
 }
 
 // Parse the GTFS data in the specified folder into the feed
@@ -323,9 +326,11 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseTransfers(path, prefix, geofilteredStops, filteredRoutes)
 	}
 	if e == nil {
-		for _, s := range feed.Stops {
-			if s.Location_type == 4 && s.Parent_station != nil {
-				hasBoardingArea[s.Parent_station.Id] = true
+		if feed.opts.ShowWarnings || feed.opts.ShowWarningsExpensive {
+			for _, s := range feed.Stops {
+				if s.Location_type == 4 && s.Parent_station != nil {
+					hasBoardingArea[s.Parent_station.Id] = true
+				}
 			}
 		}
 
@@ -500,7 +505,8 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 
 		feed.Agencies[agency.Id] = agency
 		if feed.opts.ShowWarnings && !isValidId(agency.Id) {
-			feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: agency_id '%s' contains non-ASCII or non-printable characters", agency.Id))
+
+			feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: agency_id '%s' contains non-ASCII or non-printable characters", agency.Id))
 		}
 
 		for _, i := range addFlds {
@@ -611,7 +617,7 @@ func (feed *Feed) parseStops(path string, prefix string, geofilteredStops map[st
 
 		if feed.opts.ShowWarnings {
 			if !isValidId(stop.Id) {
-				feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: stop_id '%s' contains non-ASCII or non-printable characters", stop.Id))
+				feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: stop_id '%s' contains non-ASCII or non-printable characters", stop.Id))
 			}
 
 			err := warnNearOriginOrPole(float64(stop.Lat), float64(stop.Lon), "stop '"+stop.Id+"'")
@@ -619,7 +625,7 @@ func (feed *Feed) parseStops(path string, prefix string, geofilteredStops map[st
 				feed.warn(err)
 			}
 			if len(stop.Desc) > 0 && strings.EqualFold(stop.Desc, stop.Name) {
-				feed.warn(fmt.Errorf("same_name_and_description_for_stop: stop '%s' has the same description as its name ('%s')", stop.Id, stop.Name))
+				feed.warnLimited("same_name_and_description_for_stop", fmt.Errorf("same_name_and_description_for_stop: stop '%s' has the same description as its name ('%s')", stop.Id, stop.Name))
 			}
 		}
 
@@ -798,26 +804,26 @@ func (feed *Feed) parseRoutes(path string, prefix string, filtered map[string]st
 
 		if feed.opts.ShowWarnings {
 			if route.Short_name == "" && route.Long_name == "" {
-				feed.warn(fmt.Errorf("route_both_short_and_long_name_missing: route '%s' has neither route_short_name nor route_long_name", route.Id))
+				feed.warnLimited("route_both_short_and_long_name_missing", fmt.Errorf("route_both_short_and_long_name_missing: route '%s' has neither route_short_name nor route_long_name", route.Id))
 			}
 		}
 
 		if feed.opts.ShowWarnings && !isValidId(route.Id) {
-			feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: route_id '%s' contains non-ASCII or non-printable characters", route.Id))
+			feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: route_id '%s' contains non-ASCII or non-printable characters", route.Id))
 		}
 
 		if feed.opts.ShowWarnings {
 			if len(route.Short_name) > 12 {
-				feed.warn(fmt.Errorf("route_short_name_too_long: route '%s' has a short name longer than 12 characters ('%s')", route.Id, route.Short_name))
+				feed.warnLimited("route_short_name_too_long", fmt.Errorf("route_short_name_too_long: route '%s' has a short name longer than 12 characters ('%s')", route.Id, route.Short_name))
 			}
 			if len(route.Short_name) > 0 && len(route.Long_name) > 0 &&
 				containsAsWord(route.Long_name, route.Short_name) {
-				feed.warn(fmt.Errorf("route_long_name_contains_short_name: route '%s' long name ('%s') contains short name ('%s')",
+				feed.warnLimited("route_long_name_contains_short_name", fmt.Errorf("route_long_name_contains_short_name: route '%s' long name ('%s') contains short name ('%s')",
 					route.Id, route.Long_name, route.Short_name))
 			}
 			if len(route.Desc) > 0 &&
 				(strings.EqualFold(route.Desc, route.Short_name) || strings.EqualFold(route.Desc, route.Long_name)) {
-				feed.warn(fmt.Errorf("same_name_and_description_for_route: route '%s' has the same description as its short or long name", route.Id))
+				feed.warnLimited("same_name_and_description_for_route", fmt.Errorf("same_name_and_description_for_route: route '%s' has the same description as its short or long name", route.Id))
 			}
 		}
 	}
@@ -900,7 +906,7 @@ func (feed *Feed) parseCalendar(path string, prefix string) (err error) {
 			if feed.opts.ShowWarnings {
 				if !service.Start_date().IsEmpty() && !service.End_date().IsEmpty() &&
 					service.Start_date().GetTime().After(service.End_date().GetTime()) {
-					feed.warn(fmt.Errorf("start_and_end_range_out_of_order: service '%s' has start_date (%s) after end_date (%s)",
+					feed.warnLimited("start_and_end_range_out_of_order", fmt.Errorf("start_and_end_range_out_of_order: service '%s' has start_date (%s) after end_date (%s)",
 						service.Id(),
 						service.Start_date().GetTime().Format("20060102"),
 						service.End_date().GetTime().Format("20060102")))
@@ -1035,10 +1041,10 @@ func (feed *Feed) parseTrips(path string, prefix string, filteredRoutes map[stri
 		feed.Trips[tripId] = trip
 		if feed.opts.ShowWarnings {
 			if !isValidId(tripId) {
-				feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: trip_id '%s' contains non-ASCII or non-printable characters", tripId))
+				feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: trip_id '%s' contains non-ASCII or non-printable characters", tripId))
 			}
 			if trip.Route != nil && gtfs.GetTypeFromExtended(trip.Route.Type) == 4 && trip.Bikes_allowed == 0 {
-				feed.warn(fmt.Errorf("missing_bike_allowance: ferry trip '%s' does not specify bikes_allowed", tripId))
+				feed.warnLimited("missing_bike_allowance", fmt.Errorf("missing_bike_allowance: ferry trip '%s' does not specify bikes_allowed", tripId))
 			}
 		}
 
@@ -1150,7 +1156,7 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 		} else if sp != nil {
 			if feed.opts.ShowWarnings {
 				if !isValidId(shape.Id) {
-					feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: shape_id '%s' contains non-ASCII or non-printable characters", shape.Id))
+					feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: shape_id '%s' contains non-ASCII or non-printable characters", shape.Id))
 				}
 				err := warnNearOriginOrPole(float64(sp.Lat), float64(sp.Lon), "shape '"+shape.Id+"' point seq="+fmt.Sprintf("%d", sp.Sequence))
 				if err != nil {
@@ -1358,10 +1364,10 @@ func (feed *Feed) parseStopTimes(path string, prefix string, geofiltered map[str
 				first := trip.StopTimes[0]
 				last := trip.StopTimes[len(trip.StopTimes)-1]
 				if first.Arrival_time().Empty() || first.Departure_time().Empty() {
-					feed.warn(fmt.Errorf("missing_trip_edge: trip '%s' first stop (seq=%d) is missing arrival_time or departure_time", trip.Id, first.Sequence()))
+					feed.warnLimited("missing_trip_edge", fmt.Errorf("missing_trip_edge: trip '%s' first stop (seq=%d) is missing arrival_time or departure_time", trip.Id, first.Sequence()))
 				}
 				if len(trip.StopTimes) > 1 && (last.Arrival_time().Empty() || last.Departure_time().Empty()) {
-					feed.warn(fmt.Errorf("missing_trip_edge: trip '%s' last stop (seq=%d) is missing arrival_time or departure_time", trip.Id, last.Sequence()))
+					feed.warnLimited("missing_trip_edge", fmt.Errorf("missing_trip_edge: trip '%s' last stop (seq=%d) is missing arrival_time or departure_time", trip.Id, last.Sequence()))
 				}
 			}
 
@@ -1443,7 +1449,7 @@ func (feed *Feed) parseFrequencies(path string, prefix string, filteredTrips map
 				feed.warn(fmt.Errorf("start_and_end_range_equal: frequency for trip '%s' has equal start_time and end_time (%02d:%02d:%02d)",
 					trip.Id, freq.Start_time.Hour, freq.Start_time.Minute, freq.Start_time.Second))
 			} else if start > end {
-				feed.warn(fmt.Errorf("start_and_end_range_out_of_order: frequency for trip '%s' has start_time (%02d:%02d:%02d) after end_time (%02d:%02d:%02d)",
+				feed.warnLimited("start_and_end_range_out_of_order", fmt.Errorf("start_and_end_range_out_of_order: frequency for trip '%s' has start_time (%02d:%02d:%02d) after end_time (%02d:%02d:%02d)",
 					trip.Id, freq.Start_time.Hour, freq.Start_time.Minute, freq.Start_time.Second,
 					freq.End_time.Hour, freq.End_time.Minute, freq.End_time.Second))
 			}
@@ -1536,7 +1542,7 @@ func (feed *Feed) parseFareAttributes(path string, prefix string) (err error) {
 		feed.FareAttributes[fa.Id] = fa
 
 		if feed.opts.ShowWarnings && !isValidId(fa.Id) {
-			feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: fare_id '%s' contains non-ASCII or non-printable characters", fa.Id))
+			feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: fare_id '%s' contains non-ASCII or non-printable characters", fa.Id))
 		}
 
 		for _, i := range addFlds {
@@ -1814,7 +1820,7 @@ func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[stri
 
 		if feed.opts.ShowWarnings {
 			if !isValidId(pw.Id) {
-				feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: pathway_id '%s' contains non-ASCII or non-printable characters", pw.Id))
+				feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: pathway_id '%s' contains non-ASCII or non-printable characters", pw.Id))
 			}
 			for _, endpoint := range []*gtfs.Stop{pw.From_stop, pw.To_stop} {
 				if endpoint == nil {
@@ -1822,20 +1828,20 @@ func (feed *Feed) parsePathways(path string, prefix string, geofiltered map[stri
 				}
 				// pathway_to_wrong_location_type: endpoint must not be a station (location_type=1)
 				if endpoint.Location_type == 1 {
-					feed.warn(fmt.Errorf("pathway_to_wrong_location_type: pathway '%s' has an endpoint stop '%s' which is a station (location_type=1); pathways must connect platforms, entrances, generic nodes or boarding areas",
+					feed.warnLimited("pathway_to_wrong_location_type", fmt.Errorf("pathway_to_wrong_location_type: pathway '%s' has an endpoint stop '%s' which is a station (location_type=1); pathways must connect platforms, entrances, generic nodes or boarding areas",
 						pw.Id, endpoint.Id))
 				}
 				// pathway_to_platform_with_boarding_areas: endpoint must not be a platform
 				// that itself has boarding areas (location_type=0 with children of type 4)
 				if endpoint.Location_type == 0 && hasBoardingArea[endpoint.Id] {
-					feed.warn(fmt.Errorf("pathway_to_platform_with_boarding_areas: pathway '%s' has an endpoint platform '%s' which has boarding areas; pathways should be assigned to the boarding areas instead",
+					feed.warnLimited("pathway_to_platform_with_boarding_areas", fmt.Errorf("pathway_to_platform_with_boarding_areas: pathway '%s' has an endpoint platform '%s' which has boarding areas; pathways should be assigned to the boarding areas instead",
 						pw.Id, endpoint.Id))
 					break
 				}
 			}
 
 			if pw.From_stop != nil && pw.To_stop != nil && pw.From_stop == pw.To_stop {
-				feed.warn(fmt.Errorf("pathway_loop: pathway '%s' starts and ends at the same location '%s'",
+				feed.warnLimited("pathway_loop", fmt.Errorf("pathway_loop: pathway '%s' starts and ends at the same location '%s'",
 					pw.Id, pw.From_stop.Id))
 			}
 		}
@@ -2069,7 +2075,7 @@ func (feed *Feed) parseLevels(path string, idprefix string) (err error) {
 		feed.Levels[lvl.Id] = lvl
 
 		if feed.opts.ShowWarnings && !isValidId(lvl.Id) {
-			feed.warn(fmt.Errorf("non_ascii_or_non_printable_char: level_id '%s' contains non-ASCII or non-printable characters", lvl.Id))
+			feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: level_id '%s' contains non-ASCII or non-printable characters", lvl.Id))
 		}
 
 		for _, i := range addFlds {
@@ -2145,16 +2151,16 @@ func (feed *Feed) parseFeedInfos(path string) (err error) {
 
 			if feed.opts.ShowWarnings {
 				if (fi.Start_date.IsEmpty()) != (fi.End_date.IsEmpty()) {
-					feed.warn(fmt.Errorf("missing_feed_info_date: feed_info has only one of feed_start_date / feed_end_date; both should be provided if either is set"))
+					feed.warnLimited("missing_feed_info_date", fmt.Errorf("missing_feed_info_date: feed_info has only one of feed_start_date / feed_end_date; both should be provided if either is set"))
 				}
 				if (fi.Contact_email == nil || fi.Contact_email.Address == "") &&
 					(fi.Contact_url == nil || fi.Contact_url.String() == "") {
-					feed.warn(fmt.Errorf("missing_feed_contact_email_and_url: feed_info provides neither feed_contact_email nor feed_contact_url"))
+					feed.warnLimited("missing_feed_contact_email_and_url", fmt.Errorf("missing_feed_contact_email_and_url: feed_info provides neither feed_contact_email nor feed_contact_url"))
 				}
 
 				if !fi.Start_date.IsEmpty() && !fi.End_date.IsEmpty() &&
 					fi.Start_date.GetTime().After(fi.End_date.GetTime()) {
-					feed.warn(fmt.Errorf("start_and_end_range_out_of_order: feed_info has feed_start_date (%s) after feed_end_date (%s)",
+					feed.warnLimited("start_and_end_range_out_of_order", fmt.Errorf("start_and_end_range_out_of_order: feed_info has feed_start_date (%s) after feed_end_date (%s)",
 						fi.Start_date.GetTime().Format("20060102"),
 						fi.End_date.GetTime().Format("20060102")))
 				}
@@ -2390,6 +2396,20 @@ func (feed *Feed) getGTFSDir(zip *zip.ReadCloser) string {
 	return ret
 }
 
+const maxWarningsPerType = 20
+
+func (feed *Feed) warnLimited(code string, e error) {
+	feed.warnCounts[code]++
+	n := feed.warnCounts[code]
+	if n < maxWarningsPerType {
+		feed.warn(e)
+	} else if n == maxWarningsPerType {
+		feed.warn(e)
+		fmt.Fprintf(os.Stderr, "WARNING: further '%s' warnings suppressed (>= %d occurrences)\n", code, maxWarningsPerType)
+	}
+	// n > maxWarningsPerType: silently counted but not printed
+}
+
 func (feed *Feed) warn(e error) {
 	if feed.opts.ShowWarnings {
 		fmt.Fprintln(os.Stderr, "WARNING: "+e.Error())
@@ -2552,7 +2572,7 @@ func (feed *Feed) warnDuplicateUrls() {
 		if route.Url != nil {
 			s := route.Url.String()
 			if agId, ok := agencyUrls[s]; ok {
-				feed.warn(fmt.Errorf("same_route_and_agency_url: route '%s' has the same URL as agency '%s' ('%s')", route.Id, agId, s))
+				feed.warnLimited("same_route_and_agency_url", fmt.Errorf("same_route_and_agency_url: route '%s' has the same URL as agency '%s' ('%s')", route.Id, agId, s))
 			}
 			routeUrls[s] = route.Id
 		}
@@ -2562,10 +2582,10 @@ func (feed *Feed) warnDuplicateUrls() {
 		if stop.Url != nil {
 			s := stop.Url.String()
 			if agId, ok := agencyUrls[s]; ok {
-				feed.warn(fmt.Errorf("same_stop_and_agency_url: stop '%s' has the same URL as agency '%s' ('%s')", stop.Id, agId, s))
+				feed.warnLimited("same_stop_and_agency_url", fmt.Errorf("same_stop_and_agency_url: stop '%s' has the same URL as agency '%s' ('%s')", stop.Id, agId, s))
 			}
 			if routeId, ok := routeUrls[s]; ok {
-				feed.warn(fmt.Errorf("same_stop_and_route_url: stop '%s' has the same URL as route '%s' ('%s')", stop.Id, routeId, s))
+				feed.warnLimited("same_stop_and_route_url", fmt.Errorf("same_stop_and_route_url: stop '%s' has the same URL as route '%s' ('%s')", stop.Id, routeId, s))
 			}
 		}
 	}
@@ -2586,7 +2606,7 @@ func (feed *Feed) warnAgencyLangConsistency() {
 		}
 		sort.Strings(langs)
 		// this is already caught when reading agency.txt, but i'll leave it here
-		feed.warn(fmt.Errorf("inconsistent_agency_lang: agencies have different languages: %s",
+		feed.warnLimited("inconsistent_agency_lang", fmt.Errorf("inconsistent_agency_lang: agencies have different languages: %s",
 			strings.Join(langs, ", ")))
 	}
 
@@ -2602,18 +2622,18 @@ func (feed *Feed) warnAgencyLangConsistency() {
 		isMul := feedLang == "mul"
 
 		if isMul && len(langSet) <= 1 {
-			feed.warn(fmt.Errorf("feed_info_lang_and_agency_lang_mismatch: feed_lang is 'mul' but there are not multiple distinct agency languages"))
+			feed.warnLimited("feed_info_lang_and_agency_lang_mismatch", fmt.Errorf("feed_info_lang_and_agency_lang_mismatch: feed_lang is 'mul' but there are not multiple distinct agency languages"))
 			continue
 		}
 
 		if !isMul {
 			if len(langSet) > 1 {
-				feed.warn(fmt.Errorf("feed_info_lang_and_agency_lang_mismatch: feed_lang is '%s' but there are multiple distinct agency languages; consider using 'mul'", feedLang))
+				feed.warnLimited("feed_info_lang_and_agency_lang_mismatch", fmt.Errorf("feed_info_lang_and_agency_lang_mismatch: feed_lang is '%s' but there are multiple distinct agency languages; consider using 'mul'", feedLang))
 				continue
 			}
 			for agLang := range langSet {
 				if agLang != feedLang {
-					feed.warn(fmt.Errorf("feed_info_lang_and_agency_lang_mismatch: feed_lang '%s' does not match agency_lang '%s'", feedLang, agLang))
+					feed.warnLimited("feed_info_lang_and_agency_lang_mismatch", fmt.Errorf("feed_info_lang_and_agency_lang_mismatch: feed_lang '%s' does not match agency_lang '%s'", feedLang, agLang))
 				}
 			}
 		}
@@ -2631,7 +2651,7 @@ func (feed *Feed) warnBlockTrips() {
 			// inconsistent route types within a block
 			if prevRt, ok := blockIdRouteType[bid]; ok {
 				if prevRt != trip.Route.Type {
-					feed.warn(fmt.Errorf("inconsistent_route_type_within_block: inconsistent route types for block_id '%s': found %d and %d",
+					feed.warnLimited("inconsistent_route_type_within_block", fmt.Errorf("inconsistent_route_type_within_block: inconsistent route types for block_id '%s': found %d and %d",
 						bid, prevRt, trip.Route.Type))
 				}
 			} else {
@@ -2671,7 +2691,7 @@ func (feed *Feed) warnBlockTrips() {
 				bEnd := bLast.SecondsSinceMidnight()
 
 				if aStart < bEnd && bStart < aEnd {
-					feed.warn(fmt.Errorf("block_trips_with_overlapping_stop_times: trips '%s' and '%s' in block '%s' have overlapping stop times (%02d:%02d-%02d:%02d and %02d:%02d-%02d:%02d)",
+					feed.warnLimited("block_trips_with_overlapping_stop_times", fmt.Errorf("block_trips_with_overlapping_stop_times: trips '%s' and '%s' in block '%s' have overlapping stop times (%02d:%02d-%02d:%02d and %02d:%02d-%02d:%02d)",
 						trips[i].Id, trips[j].Id, bid,
 						aFirst.Hour, aFirst.Minute, aLast.Hour, aLast.Minute,
 						bFirst.Hour, bFirst.Minute, bLast.Hour, bLast.Minute))
@@ -2729,7 +2749,7 @@ func (feed *Feed) warnPathwayReachability(hasBoardingArea map[string]bool) {
 	}
 	for id, nbrs := range neighbours {
 		if len(nbrs) <= 1 {
-			feed.warn(fmt.Errorf("pathway_dangling_generic_node: generic node '%s' has only %d incident location(s) in the pathway graph and is therefore useless",
+			feed.warnLimited("pathway_dangling_generic_node", fmt.Errorf("pathway_dangling_generic_node: generic node '%s' has only %d incident location(s) in the pathway graph and is therefore useless",
 				id, len(nbrs)))
 		}
 	}
@@ -2759,10 +2779,10 @@ func (feed *Feed) warnPathwayReachability(hasBoardingArea map[string]bool) {
 
 	for id, stop := range candidates {
 		if _, ok := reachableFromEntrance[id]; !ok {
-			feed.warn(fmt.Errorf("pathway_unreachable_location: stop '%s' (location_type=%d) is not reachable from any entrance",
+			feed.warnLimited("pathway_unreachable_location", fmt.Errorf("pathway_unreachable_location: stop '%s' (location_type=%d) is not reachable from any entrance",
 				stop.Id, stop.Location_type))
 		} else if _, ok := reachableToEntrance[id]; !ok {
-			feed.warn(fmt.Errorf("pathway_unreachable_location: stop '%s' (location_type=%d) cannot reach any exit",
+			feed.warnLimited("pathway_unreachable_location", fmt.Errorf("pathway_unreachable_location: stop '%s' (location_type=%d) cannot reach any exit",
 				stop.Id, stop.Location_type))
 		}
 	}
@@ -2799,7 +2819,7 @@ func (feed *Feed) warnUnusedStations() {
 	}
 	for _, s := range stations {
 		if _, ok := referenced[s.Id]; !ok {
-			feed.warn(fmt.Errorf("unused_station: stop '%s' has location_type=1 (station) but is not referenced as a parent_station by any stop", s.Id))
+			feed.warnLimited("unused_station", fmt.Errorf("unused_station: stop '%s' has location_type=1 (station) but is not referenced as a parent_station by any stop", s.Id))
 		}
 	}
 }
@@ -2824,12 +2844,12 @@ func (feed *Feed) warnUnusedShapesAndTripsAndStops() {
 
 	for id := range feed.Shapes {
 		if _, ok := referencedShapes[id]; !ok {
-			feed.warn(fmt.Errorf("unused_shape: shape '%s' is defined in shapes.txt but not referenced by any trip", id))
+			feed.warnLimited("unused_shape", fmt.Errorf("unused_shape: shape '%s' is defined in shapes.txt but not referenced by any trip", id))
 		}
 	}
 	for id := range feed.Trips {
 		if _, ok := tripsWithStopTimes[id]; !ok {
-			feed.warn(fmt.Errorf("unused_trip: trip '%s' is not referenced by any stop time", id))
+			feed.warnLimited("unused_trip", fmt.Errorf("unused_trip: trip '%s' is not referenced by any stop time", id))
 		}
 	}
 	for _, stop := range feed.Stops {
@@ -2837,7 +2857,7 @@ func (feed *Feed) warnUnusedShapesAndTripsAndStops() {
 			continue
 		}
 		if _, ok := referencedStops[stop.Id]; !ok {
-			feed.warn(fmt.Errorf("stop_without_stop_time: stop '%s' ('%s') is not referenced by any stop time",
+			feed.warnLimited("stop_without_stop_time", fmt.Errorf("stop_without_stop_time: stop '%s' ('%s') is not referenced by any stop time",
 				stop.Id, stop.Name))
 		}
 	}
@@ -2853,7 +2873,7 @@ func (feed *Feed) warnExpiredCalendars() {
 
 		// check calendar.txt-style services with explicit date ranges
 		if !svc.End_date().IsEmpty() && svc.End_date().GetTime().Before(now) {
-			feed.warn(fmt.Errorf("expired_calendar: service '%s' end date %s is in the past",
+			feed.warnLimited("expired_calendar", fmt.Errorf("expired_calendar: service '%s' end date %s is in the past",
 				svc.Id(), svc.End_date().GetTime().Format("20060102")))
 			continue
 		}
@@ -2863,7 +2883,7 @@ func (feed *Feed) warnExpiredCalendars() {
 		if svc.End_date().IsEmpty() {
 			lastActive := svc.GetLastActiveDate()
 			if !lastActive.IsEmpty() && lastActive.GetTime().Before(now) {
-				feed.warn(fmt.Errorf("expired_calendar: service '%s' has no active dates in the future (last active: %s)",
+				feed.warnLimited("expired_calendar", fmt.Errorf("expired_calendar: service '%s' has no active dates in the future (last active: %s)",
 					svc.Id(), lastActive.GetTime().Format("20060102")))
 			}
 		}
