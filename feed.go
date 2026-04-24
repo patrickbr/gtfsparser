@@ -620,10 +620,6 @@ func (feed *Feed) parseStops(path string, prefix string, geofilteredStops map[st
 				feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: stop_id '%s' contains non-ASCII or non-printable characters", stop.Id))
 			}
 
-			err := warnNearOriginOrPole(float64(stop.Lat), float64(stop.Lon), "stop '"+stop.Id+"'")
-			if err != nil {
-				feed.warn(err)
-			}
 			if len(stop.Desc) > 0 && strings.EqualFold(stop.Desc, stop.Name) {
 				feed.warnLimited("same_name_and_description_for_stop", fmt.Errorf("same_name_and_description_for_stop: stop '%s' has the same description as its name ('%s')", stop.Id, stop.Name))
 			}
@@ -1157,10 +1153,6 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 			if feed.opts.ShowWarnings {
 				if !isValidId(shape.Id) {
 					feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: shape_id '%s' contains non-ASCII or non-printable characters", shape.Id))
-				}
-				err := warnNearOriginOrPole(float64(sp.Lat), float64(sp.Lon), "shape '"+shape.Id+"' point seq="+fmt.Sprintf("%d", sp.Sequence))
-				if err != nil {
-					feed.warn(err)
 				}
 			}
 

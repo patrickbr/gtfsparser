@@ -1116,9 +1116,9 @@ func createStop(r []string, flds StopFields, feed *Feed, prefix string) (s *gtfs
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-180, 180].", a.Lat, a.Lon))
 	}
 
-	// check for 0,0 coordinates, which are most definitely an error
-	if a.HasLatLon() && feed.opts.CheckNullCoordinates && math.Abs(float64(a.Lat)) < 0.0001 && math.Abs(float64(a.Lon)) < 0.0001 {
-		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
+	err = warnNearOriginOrPole(float64(a.Lat), float64(a.Lon), "Stop '"+a.Id+"'")
+	if err != nil {
+		panic(err)
 	}
 
 	a.Zone_id = prefix + getString(flds.zoneId, r, flds.FldName(flds.zoneId), false, false, "")
@@ -1451,9 +1451,9 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-180, 180].", lat, lon))
 	}
 
-	// check for 0,0 coordinates, which are most definitely an error
-	if feed.opts.CheckNullCoordinates && math.Abs(float64(lat)) < 0.0001 && math.Abs(float64(lon)) < 0.0001 {
-		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
+	err = warnNearOriginOrPole(float64(lat), float64(lon), "Shape '"+shape.Id+"'")
+	if err != nil {
+		panic(err)
 	}
 
 	// check if any defined PolygonFilter contains the shape point
