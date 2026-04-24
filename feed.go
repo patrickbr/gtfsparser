@@ -292,7 +292,7 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseCalendarDates(path, prefix)
 	}
 	if e == nil && len(feed.Services) == 0 {
-		e = errors.New("missing_calendar_and_calendar_date_files: Neither calendar.txt nor calendar_dates.txt could be opened. At least one is required.")
+		e = errors.New("missing_calendar_and_calendar_date_files: neither calendar.txt nor calendar_dates.txt could be opened.")
 	}
 	if e == nil {
 		e = feed.parseTrips(path, prefix, filteredRoutes, filteredTrips)
@@ -2657,34 +2657,41 @@ func (feed *Feed) warnBlockTrips() {
 
 	// block_trips_with_overlapping_stop_times
 	for bid, trips := range blocks {
-		for i := 0; i < len(trips); i++ {
-			if len(trips[i].StopTimes) < 2 {
-				continue
+		// filter out trips without usable stop times before sorting
+		usable := trips[:0]
+		for _, t := range trips {
+			if len(t.StopTimes) >= 2 &&
+				!t.StopTimes[0].Arrival_time().Empty() &&
+				!t.StopTimes[len(t.StopTimes)-1].Departure_time().Empty() {
+				usable = append(usable, t)
 			}
-			aFirst := trips[i].StopTimes[0].Arrival_time()
-			aLast := trips[i].StopTimes[len(trips[i].StopTimes)-1].Departure_time()
-			if aFirst.Empty() || aLast.Empty() {
-				continue
-			}
+		}
 
-			for j := i + 1; j < len(trips); j++ {
-				if len(trips[j].StopTimes) < 2 {
-					continue
-				}
-				bFirst := trips[j].StopTimes[0].Arrival_time()
-				bLast := trips[j].StopTimes[len(trips[j].StopTimes)-1].Departure_time()
-				if bFirst.Empty() || bLast.Empty() {
-					continue
-				}
+		sort.Slice(usable, func(i, j int) bool {
+			return usable[i].StopTimes[0].Arrival_time().SecondsSinceMidnight() <
+				usable[j].StopTimes[0].Arrival_time().SecondsSinceMidnight()
+		})
 
-				aStart := aFirst.SecondsSinceMidnight()
-				aEnd := aLast.SecondsSinceMidnight()
+		for i := 0; i < len(usable); i++ {
+			aFirst := usable[i].StopTimes[0].Arrival_time()
+			aLast := usable[i].StopTimes[len(usable[i].StopTimes)-1].Departure_time()
+			aStart := aFirst.SecondsSinceMidnight()
+			aEnd := aLast.SecondsSinceMidnight()
+
+			for j := i + 1; j < len(usable); j++ {
+				bFirst := usable[j].StopTimes[0].Arrival_time()
 				bStart := bFirst.SecondsSinceMidnight()
+
+				if bStart >= aEnd {
+					break
+				}
+
+				bLast := usable[j].StopTimes[len(usable[j].StopTimes)-1].Departure_time()
 				bEnd := bLast.SecondsSinceMidnight()
 
-				if aStart < bEnd && bStart < aEnd {
+				if aStart < bEnd {
 					feed.warnLimited("block_trips_with_overlapping_stop_times", fmt.Errorf("block_trips_with_overlapping_stop_times: trips '%s' and '%s' in block '%s' have overlapping stop times (%02d:%02d-%02d:%02d and %02d:%02d-%02d:%02d)",
-						trips[i].Id, trips[j].Id, bid,
+						usable[i].Id, usable[j].Id, bid,
 						aFirst.Hour, aFirst.Minute, aLast.Hour, aLast.Minute,
 						bFirst.Hour, bFirst.Minute, bLast.Hour, bLast.Minute))
 				}
@@ -2817,7 +2824,6 @@ func (feed *Feed) warnUnusedStations() {
 }
 func (feed *Feed) warnUnusedShapesAndTripsAndStops() {
 	referencedShapes := make(map[string]struct{})
-	tripsWithStopTimes := make(map[string]struct{})
 	referencedStops := make(map[string]struct{})
 
 	for _, trip := range feed.Trips {
@@ -2829,19 +2835,14 @@ func (feed *Feed) warnUnusedShapesAndTripsAndStops() {
 				referencedStops[s.Id] = struct{}{}
 			}
 		}
-		if len(trip.StopTimes) > 0 {
-			tripsWithStopTimes[trip.Id] = struct{}{}
+		if len(trip.StopTimes) == 0 {
+			feed.warnLimited("unused_trip", fmt.Errorf("unused_trip: trip '%s' is not referenced by any stop time", trip.Id))
 		}
 	}
 
 	for id := range feed.Shapes {
 		if _, ok := referencedShapes[id]; !ok {
 			feed.warnLimited("unused_shape", fmt.Errorf("unused_shape: shape '%s' is defined in shapes.txt but not referenced by any trip", id))
-		}
-	}
-	for id := range feed.Trips {
-		if _, ok := tripsWithStopTimes[id]; !ok {
-			feed.warnLimited("unused_trip", fmt.Errorf("unused_trip: trip '%s' is not referenced by any stop time", id))
 		}
 	}
 	for _, stop := range feed.Stops {
