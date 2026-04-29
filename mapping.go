@@ -674,6 +674,18 @@ func (e *TripNotFoundErr) TripId() string {
 	return e.prefix + e.tid
 }
 
+type ZoneNotFoundError struct {
+	zid string
+}
+
+func (z *ZoneNotFoundError) Error() string {
+	return "No zone with id " + z.zid + " found."
+}
+
+func (z *ZoneNotFoundError) ZoneId() string {
+	return z.zid
+}
+
 func createTranslation(r []string, flds TranslationFields, feed *Feed, prefix string) (attr *gtfs.Translation, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1025,7 +1037,7 @@ func createServiceFromCalendarDates(r []string, flds CalendarDatesFields, feed *
 			return nil, errors.New("Date exception for service id " + getString(flds.serviceId, r, flds.FldName(flds.serviceId), true, true, "") + " defined 2 times for one date.")
 		}
 		if (filterDateEnd.IsEmpty() || !date.GetTime().After(filterDateEnd.GetTime())) &&
-		(filterDateStart.IsEmpty() || !date.GetTime().Before(filterDateStart.GetTime())) {
+			(filterDateStart.IsEmpty() || !date.GetTime().Before(filterDateStart.GetTime())) {
 			service.SetExceptionTypeOn(date, int8(t))
 		}
 	}
@@ -1527,7 +1539,7 @@ func createFareAttribute(r []string, flds FareAttributeFields, feed *Feed, prefi
 	return a, nil
 }
 
-func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) (fare *gtfs.FareAttribute, rl *gtfs.FareAttributeRule, err error) {
+func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string, geofilteredZones map[string]struct{}) (fare *gtfs.FareAttribute, rl *gtfs.FareAttributeRule, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -1539,7 +1551,7 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) 
 
 	fareid = prefix + getString(flds.fareId, r, flds.FldName(flds.fareId), true, true, "")
 
-	// first, check if the service already exists
+	// first, check if the fare already exists
 	if val, ok := feed.FareAttributes[fareid]; ok {
 		fareattr = val
 	} else {
@@ -1563,9 +1575,44 @@ func createFareRule(r []string, flds FareRuleFields, feed *Feed, prefix string) 
 	rule.Destination_id = prefix + getString(flds.destinationId, r, flds.FldName(flds.destinationId), false, false, "")
 	rule.Contains_id = prefix + getString(flds.containsId, r, flds.FldName(flds.containsId), false, false, "")
 
+	err = feed.checkZoneID(&rule.Origin_id, "origin_id")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = feed.checkZoneID(&rule.Destination_id, "destination_id")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = feed.checkZoneID(&rule.Contains_id, "contains_id")
+	if err != nil {
+		return nil, nil, err
+	}
+
 	fareattr.Rules = append(fareattr.Rules, rule)
 
 	return fareattr, rule, nil
+}
+
+// checkZoneID only validates existence; filtering and policy decisions
+// are handled by the caller.
+func (feed *Feed) checkZoneID(
+	zoneID *string,
+	fieldName string,
+) error {
+
+	if *zoneID == "" {
+		return nil
+	}
+
+	if _, ok := feed.ZoneIds[*zoneID]; ok {
+		return nil
+	}
+
+	return &ZoneNotFoundError{
+		zid: *zoneID,
+	}
 }
 
 func createTransfer(r []string, flds TransferFields, feed *Feed, prefix string) (tk gtfs.TransferKey, tv gtfs.TransferVal, err error) {
@@ -1719,7 +1766,7 @@ func createLevel(r []string, flds LevelFields, feed *Feed, idprefix string) (t *
 
 func getString(id int, r []string, fldName string, req bool, nonempty bool, emptyrepl string) string {
 	if id >= 0 {
-		if id < len(r) && len(r[id]) > 0{
+		if id < len(r) && len(r[id]) > 0 {
 			return r[id]
 		}
 		if nonempty {
@@ -2040,7 +2087,7 @@ func getTime(id int, r []string, fldName string) gtfs.Time {
 
 	return gtfs.Time{Hour: int8(hour), Minute: int8(minute), Second: int8(second)}
 
-	fail:
+fail:
 	panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", fldName, errFldPrep(r[id]), e.Error()))
 }
 
