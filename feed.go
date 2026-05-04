@@ -505,7 +505,6 @@ func (feed *Feed) parseAgencies(path string, prefix string) (err error) {
 
 		feed.Agencies[agency.Id] = agency
 		if feed.opts.ShowWarnings && !isValidId(agency.Id) {
-
 			feed.warnLimited("non_ascii_or_non_printable_char", fmt.Errorf("non_ascii_or_non_printable_char: agency_id '%s' contains non-ASCII or non-printable characters", agency.Id))
 		}
 
@@ -1740,7 +1739,7 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 					if len(trip.StopTimes) > 0 {
 						firstSt := trip.StopTimes[0]
 						if firstSt.Stop() != tk.To_stop {
-							feed.warn(fmt.Errorf("transfer_with_suspicious_mid_trip_in_seat: in-seat transfer to trip '%s' references stop '%s' which is not the first stop in the trip",
+							feed.warnLimited("transfer_with_suspicious_mid_trip_in_seat", fmt.Errorf("transfer_with_suspicious_mid_trip_in_seat: in-seat transfer to trip '%s' references stop '%s' which is not the first stop in the trip",
 								trip.Id, tk.To_stop.Id))
 						}
 					}
