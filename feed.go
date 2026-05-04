@@ -570,6 +570,10 @@ func (feed *Feed) parseStops(path string, prefix string, geofilteredStops map[st
 	parentStopIds := make(map[string]string, 0)
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
 		stop, parentId, e := createStop(record, flds, feed, prefix)
+		if e == nil && stop != nil && stop.HasLatLon() && feed.opts.CheckNullCoordinates {
+			e = checkNearOriginOrPole(float64(stop.Lat), float64(stop.Lon), "Stop '"+stop.Id+"'")
+		}
+
 		if e == nil {
 			if _, ok := feed.Stops[stop.Id]; ok {
 				e = errors.New("ID collision, stop_id '" + stop.Id + "' already used.")
@@ -1140,7 +1144,9 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 		i += 1
 
 		shape, sp, e := createShapePoint(record, flds, feed, prefix)
-
+		if e == nil && sp != nil && feed.opts.CheckNullCoordinates {
+			e = checkNearOriginOrPole(float64(sp.Lat), float64(sp.Lon), "Shape '"+shape.Id+"'")
+		}
 		if e != nil {
 			if feed.opts.DropErroneous {
 				feed.ErrorStats.DroppedShapes++
@@ -1190,7 +1196,7 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 			sort.Sort(shape.Points)
 
 			if feed.opts.ShowWarnings && len(shape.Points) == 1 {
-				feed.warn(fmt.Errorf("single_shape_point: shape '%s' contains only a single point", id))
+				feed.warnLimited("single_shape_point", fmt.Errorf("single_shape_point: shape '%s' contains only a single point", id))
 			}
 
 			e = feed.checkShapeMeasure(shape, &feed.opts)
@@ -1438,7 +1444,7 @@ func (feed *Feed) parseFrequencies(path string, prefix string, filteredTrips map
 			start := freq.Start_time.SecondsSinceMidnight()
 			end := freq.End_time.SecondsSinceMidnight()
 			if start == end {
-				feed.warn(fmt.Errorf("start_and_end_range_equal: frequency for trip '%s' has equal start_time and end_time (%02d:%02d:%02d)",
+				feed.warnLimited("start_and_end_range_equal", fmt.Errorf("start_and_end_range_equal: frequency for trip '%s' has equal start_time and end_time (%02d:%02d:%02d)",
 					trip.Id, freq.Start_time.Hour, freq.Start_time.Minute, freq.Start_time.Second))
 			} else if start > end {
 				feed.warnLimited("start_and_end_range_out_of_order", fmt.Errorf("start_and_end_range_out_of_order: frequency for trip '%s' has start_time (%02d:%02d:%02d) after end_time (%02d:%02d:%02d)",
@@ -1473,7 +1479,7 @@ func (feed *Feed) parseFrequencies(path string, prefix string, filteredTrips map
 			for i := 1; i < len(freqs); i++ {
 				x, y := freqs[i-1], freqs[i]
 				if y.start < x.end {
-					feed.warn(fmt.Errorf("overlapping_frequency: trip '%s' has overlapping frequencies (%02d:%02d-%02d:%02d and %02d:%02d-%02d:%02d)",
+					feed.warnLimited("overlapping_frequency", fmt.Errorf("overlapping_frequency: trip '%s' has overlapping frequencies (%02d:%02d-%02d:%02d and %02d:%02d-%02d:%02d)",
 						tripId,
 						x.start/3600, (x.start%3600)/60,
 						x.end/3600, (x.end%3600)/60,
@@ -1711,7 +1717,7 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 
 				dist := haversineKm(lat1, lon1, lat2, lon2)
 				if dist > 10.0 {
-					feed.warn(fmt.Errorf("transfer_distance_too_large: transfer from stop '%s' to stop '%s' is %.2f km apart (max 10 km)",
+					feed.warnLimited("transfer_distance_too_large", fmt.Errorf("transfer_distance_too_large: transfer from stop '%s' to stop '%s' is %.2f km apart (max 10 km)",
 						tk.From_stop.Id, tk.To_stop.Id, dist))
 				}
 			}
@@ -1724,7 +1730,7 @@ func (feed *Feed) parseTransfers(path string, prefix string, geofiltered map[str
 					if len(trip.StopTimes) > 0 {
 						lastSt := trip.StopTimes[len(trip.StopTimes)-1]
 						if lastSt.Stop() != tk.From_stop {
-							feed.warn(fmt.Errorf("transfer_with_suspicious_mid_trip_in_seat: in-seat transfer from trip '%s' references stop '%s' which is not the last stop in the trip",
+							feed.warnLimited("transfer_with_suspicious_mid_trip_in_seat", fmt.Errorf("transfer_with_suspicious_mid_trip_in_seat: in-seat transfer from trip '%s' references stop '%s' which is not the last stop in the trip",
 								trip.Id, tk.From_stop.Id))
 						}
 					}
@@ -2396,7 +2402,6 @@ func (feed *Feed) warnLimited(code string, e error) {
 	if n < maxWarningsPerType {
 		feed.warn(e)
 	} else if n == maxWarningsPerType {
-		feed.warn(e)
 		fmt.Fprintf(os.Stderr, "WARNING: further '%s' warnings suppressed (>= %d occurrences)\n", code, maxWarningsPerType)
 	}
 	// n > maxWarningsPerType: silently counted but not printed
@@ -2597,7 +2602,6 @@ func (feed *Feed) warnAgencyLangConsistency() {
 			langs = append(langs, l)
 		}
 		sort.Strings(langs)
-		// this is already caught when reading agency.txt, but i'll leave it here
 		feed.warnLimited("inconsistent_agency_lang", fmt.Errorf("inconsistent_agency_lang: agencies have different languages: %s",
 			strings.Join(langs, ", ")))
 	}
@@ -2658,7 +2662,7 @@ func (feed *Feed) warnBlockTrips() {
 	// block_trips_with_overlapping_stop_times
 	for bid, trips := range blocks {
 		// filter out trips without usable stop times before sorting
-		usable := trips[:0]
+		usable := make([]*gtfs.Trip, 0, len(trips))
 		for _, t := range trips {
 			if len(t.StopTimes) >= 2 &&
 				!t.StopTimes[0].Arrival_time().Empty() &&

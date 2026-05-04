@@ -1116,11 +1116,6 @@ func createStop(r []string, flds StopFields, feed *Feed, prefix string) (s *gtfs
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-180, 180].", a.Lat, a.Lon))
 	}
 
-	err = warnNearOriginOrPole(float64(a.Lat), float64(a.Lon), "Stop '"+a.Id+"'")
-	if err != nil {
-		panic(err)
-	}
-
 	a.Zone_id = prefix + getString(flds.zoneId, r, flds.FldName(flds.zoneId), false, false, "")
 	if len(a.Zone_id) == len(prefix) {
 		a.Zone_id = ""
@@ -1449,11 +1444,6 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 
 	if math.Abs(float64(lon)) > 180 {
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-180, 180].", lat, lon))
-	}
-
-	err = warnNearOriginOrPole(float64(lat), float64(lon), "Shape '"+shape.Id+"'")
-	if err != nil {
-		panic(err)
 	}
 
 	// check if any defined PolygonFilter contains the shape point

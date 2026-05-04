@@ -130,17 +130,17 @@ func TestWarnNearOriginOrPole(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := warnNearOriginOrPole(tt.lat, tt.lon, "test")
+			err := checkNearOriginOrPole(tt.lat, tt.lon, "test")
 			if tt.wantNil {
 				if err != nil {
-					t.Errorf("warnNearOriginOrPole(%v, %v) = %v, want nil", tt.lat, tt.lon, err)
+					t.Errorf("checkNearOriginOrPole(%v, %v) = %v, want nil", tt.lat, tt.lon, err)
 				}
 			} else {
 				if err == nil {
-					t.Errorf("warnNearOriginOrPole(%v, %v) = nil, want error containing %q", tt.lat, tt.lon, tt.wantInErr)
+					t.Errorf("checkNearOriginOrPole(%v, %v) = nil, want error containing %q", tt.lat, tt.lon, tt.wantInErr)
 				} else if tt.wantInErr != "" {
 					if !containsStr(err.Error(), tt.wantInErr) {
-						t.Errorf("warnNearOriginOrPole(%v, %v) error = %q, want it to contain %q", tt.lat, tt.lon, err.Error(), tt.wantInErr)
+						t.Errorf("checkNearOriginOrPole(%v, %v) error = %q, want it to contain %q", tt.lat, tt.lon, err.Error(), tt.wantInErr)
 					}
 				}
 			}

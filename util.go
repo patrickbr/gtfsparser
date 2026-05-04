@@ -28,7 +28,7 @@ func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
 	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 }
 
-func warnNearOriginOrPole(lat float64, lon float64, context string) error {
+func checkNearOriginOrPole(lat float64, lon float64, context string) error {
 	if math.Abs(lat) < 0.001 && math.Abs(lon) < 0.001 {
 		return fmt.Errorf("point_near_origin: %s point is too close to origin (0, 0)", context)
 	} else if math.Abs(lat) > 89.999 {
