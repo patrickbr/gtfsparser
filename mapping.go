@@ -837,7 +837,7 @@ func createFeedInfo(r []string, flds FeedInfoFields, feed *Feed) (fi *gtfs.FeedI
 
 	f.Publisher_name = getString(flds.feedPublisherName, r, flds.FldName(flds.feedPublisherName), true, true, feed.opts.EmptyStringRepl)
 	f.Publisher_url = getURL(flds.feedPublisherUrl, r, flds, true, feed.opts.UseDefValueOnError, feed)
-	f.Lang = getString(flds.feedLang, r, flds.FldName(flds.feedLang), true, true, feed.opts.EmptyStringRepl)
+	f.Lang = getIsoLangCode(flds.feedLang, r, flds.FldName(flds.feedLang), true, true, feed)
 	f.Start_date = getDate(flds.feedStartDate, r, flds, false, feed.opts.UseDefValueOnError, feed)
 	f.End_date = getDate(flds.feedEndDate, r, flds, false, feed.opts.UseDefValueOnError, feed)
 	f.Version = getString(flds.feedVersion, r, flds.FldName(flds.feedVersion), false, false, "")
@@ -974,8 +974,8 @@ func createRoute(r []string, flds RouteFields, feed *Feed, prefix string) (route
 	a.Continuous_pickup = int8(getRangeIntWithDefault(flds.continuousPickup, r, flds.FldName(flds.routeSortOrder), 0, 3, 1, feed.opts.UseDefValueOnError, feed))
 	a.Continuous_drop_off = int8(getRangeIntWithDefault(flds.continuousDropOff, r, flds.FldName(flds.continuousDropOff), 0, 3, 1, feed.opts.UseDefValueOnError, feed))
 
-	if !hasValidContrast(a.Text_color, a.Color) {
-		feed.warn(fmt.Errorf("Insufficient contrast between text_color #%s and route_color #%s for route %s", a.Text_color, a.Color, a.Id))
+	if feed.opts.ShowWarnings && !hasValidContrast(a.Text_color, a.Color) {
+		feed.warnLimited("route_color_contrast", fmt.Errorf("route_color_contrast: Insufficient contrast between text_color #%s and route_color #%s for route %s", a.Text_color, a.Color, a.Id))
 	}
 
 	return a, nil
@@ -1114,11 +1114,6 @@ func createStop(r []string, flds StopFields, feed *Feed, prefix string) (s *gtfs
 
 	if a.HasLatLon() && math.Abs(float64(a.Lon)) > 180 {
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-180, 180].", a.Lat, a.Lon))
-	}
-
-	// check for 0,0 coordinates, which are most definitely an error
-	if a.HasLatLon() && feed.opts.CheckNullCoordinates && math.Abs(float64(a.Lat)) < 0.0001 && math.Abs(float64(a.Lon)) < 0.0001 {
-		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
 	}
 
 	a.Zone_id = prefix + getString(flds.zoneId, r, flds.FldName(flds.zoneId), false, false, "")
@@ -1451,11 +1446,6 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (%f, %f), longitude is not in the allowed range [-180, 180].", lat, lon))
 	}
 
-	// check for 0,0 coordinates, which are most definitely an error
-	if feed.opts.CheckNullCoordinates && math.Abs(float64(lat)) < 0.0001 && math.Abs(float64(lon)) < 0.0001 {
-		panic(fmt.Errorf("Expected coordinate (lat, lon), instead found (0, 0), which is in the middle of the atlantic."))
-	}
-
 	// check if any defined PolygonFilter contains the shape point
 	contains := true
 	for _, poly := range feed.opts.PolygonFilter {
@@ -1724,6 +1714,10 @@ func createPathway(r []string, flds PathwayFields, feed *Feed, prefix string) (t
 
 	a.Mode = uint8(getRangeInt(flds.pathwayMode, r, flds.FldName(flds.pathwayMode), true, 1, 7))
 	a.Is_bidirectional = getBool(flds.isBidirectional, r, flds.FldName(flds.isBidirectional), true, false, feed.opts.UseDefValueOnError, feed)
+
+	if a.Mode == 7 && a.Is_bidirectional {
+		return nil, fmt.Errorf("bidirectional_exit_gate: pathway '%s' is an exit gate (mode=7) but is marked as bidirectional", a.Id)
+	}
 
 	length := getNullableFloat(flds.length, r, flds.FldName(flds.length), feed.opts.UseDefValueOnError, feed)
 	a.Length = length
