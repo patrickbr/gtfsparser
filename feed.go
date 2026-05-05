@@ -97,7 +97,7 @@ type ParseOptions struct {
 	EmptyStringRepl              string
 	ZipFix                       bool
 	ShowWarnings                 bool
-	ShowWarningsExpensive        bool
+	ShowWarningsExtensive        bool
 	DropShapes                   bool
 	KeepAddFlds                  bool
 	DateFilterStart              gtfs.Date
@@ -231,7 +231,7 @@ func NewFeed() *Feed {
 // SetParseOpts sets the ParseOptions for this feed
 func (feed *Feed) SetParseOpts(opts ParseOptions) {
 	feed.opts = opts
-	feed.opts.ShowWarnings = feed.opts.ShowWarnings || feed.opts.ShowWarningsExpensive
+	feed.opts.ShowWarnings = feed.opts.ShowWarnings || feed.opts.ShowWarningsExtensive
 }
 
 // Parse the GTFS data in the specified folder into the feed
@@ -326,7 +326,7 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		e = feed.parseTransfers(path, prefix, geofilteredStops, filteredRoutes)
 	}
 	if e == nil {
-		if feed.opts.ShowWarnings || feed.opts.ShowWarningsExpensive {
+		if feed.opts.ShowWarnings || feed.opts.ShowWarningsExtensive {
 			for _, s := range feed.Stops {
 				if s.Location_type == 4 && s.Parent_station != nil {
 					hasBoardingArea[s.Parent_station.Id] = true
@@ -373,7 +373,7 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		feed.warnExpiredCalendars()
 	}
 
-	if feed.opts.ShowWarningsExpensive {
+	if feed.opts.ShowWarningsExtensive {
 		feed.warnPathwayReachability(hasBoardingArea)
 		feed.warnUnusedShapesAndTripsAndStops()
 		feed.warnBlockTrips()
@@ -569,8 +569,19 @@ func (feed *Feed) parseStops(path string, prefix string, geofilteredStops map[st
 	parentStopIds := make(map[string]string, 0)
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
 		stop, parentId, e := createStop(record, flds, feed, prefix)
-		if e == nil && stop != nil && stop.HasLatLon() && feed.opts.CheckNullCoordinates {
-			e = checkNearOriginOrPole(float64(stop.Lat), float64(stop.Lon), "Stop '"+stop.Id+"'")
+
+		// 1.) If ShowWarningsExtensive OR CheckNullCoordinates is enabled, run this check
+		// 2.) If ShowWarningsExtensive is set and CheckNullCoordinates is not set, and if checkNewOriginOrPole returns an error, show this error as a warning
+		// 3.) If CheckNullCoordinates is set, and if checkNewOriginOrPole returns an error, set e (current behavior).
+		if e == nil && stop != nil && stop.HasLatLon() &&
+			(feed.opts.CheckNullCoordinates || feed.opts.ShowWarningsExtensive) {
+			if coordErr := checkNearOriginOrPole(float64(stop.Lat), float64(stop.Lon), "Stop '"+stop.Id+"'"); coordErr != nil {
+				if feed.opts.CheckNullCoordinates {
+					e = coordErr
+				} else {
+					feed.warnLimited("point_near_origin_or_pole", coordErr)
+				}
+			}
 		}
 
 		if e == nil {
@@ -1143,8 +1154,18 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 		i += 1
 
 		shape, sp, e := createShapePoint(record, flds, feed, prefix)
-		if e == nil && sp != nil && feed.opts.CheckNullCoordinates {
-			e = checkNearOriginOrPole(float64(sp.Lat), float64(sp.Lon), "Shape '"+shape.Id+"'")
+		// 1.) If ShowWarningsExtensive OR CheckNullCoordinates is enabled, run this check
+		// 2.) If ShowWarningsExtensive is set and CheckNullCoordinates is not set, and if checkNewOriginOrPole returns an error, show this error as a warning
+		// 3.) If CheckNullCoordinates is set, and if checkNewOriginOrPole returns an error, set e (current behavior).
+		if e == nil && sp != nil &&
+			(feed.opts.CheckNullCoordinates || feed.opts.ShowWarningsExtensive) {
+			if coordErr := checkNearOriginOrPole(float64(sp.Lat), float64(sp.Lon), "Shape '"+shape.Id+"'"); coordErr != nil {
+				if feed.opts.CheckNullCoordinates {
+					e = coordErr
+				} else {
+					feed.warnLimited("point_near_origin_or_pole", coordErr)
+				}
+			}
 		}
 		if e != nil {
 			if feed.opts.DropErroneous {
@@ -1453,7 +1474,7 @@ func (feed *Feed) parseFrequencies(path string, prefix string, filteredTrips map
 		}
 	}
 
-	if feed.opts.ShowWarningsExpensive {
+	if feed.opts.ShowWarningsExtensive {
 		// group frequencies by trip id
 		type freqRange struct {
 			start int
