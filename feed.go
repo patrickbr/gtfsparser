@@ -569,10 +569,6 @@ func (feed *Feed) parseStops(path string, prefix string, geofilteredStops map[st
 	parentStopIds := make(map[string]string, 0)
 	for record = reader.ParseCsvLine(); record != nil; record = reader.ParseCsvLine() {
 		stop, parentId, e := createStop(record, flds, feed, prefix)
-
-		// 1.) If ShowWarningsExtensive OR CheckNullCoordinates is enabled, run this check
-		// 2.) If ShowWarningsExtensive is set and CheckNullCoordinates is not set, and if checkNewOriginOrPole returns an error, show this error as a warning
-		// 3.) If CheckNullCoordinates is set, and if checkNewOriginOrPole returns an error, set e (current behavior).
 		if e == nil && stop != nil && stop.HasLatLon() &&
 			(feed.opts.CheckNullCoordinates || feed.opts.ShowWarningsExtensive) {
 			if coordErr := checkNearOriginOrPole(float64(stop.Lat), float64(stop.Lon), "Stop '"+stop.Id+"'"); coordErr != nil {
@@ -1154,9 +1150,6 @@ func (feed *Feed) parseShapes(path string, prefix string) (err error) {
 		i += 1
 
 		shape, sp, e := createShapePoint(record, flds, feed, prefix)
-		// 1.) If ShowWarningsExtensive OR CheckNullCoordinates is enabled, run this check
-		// 2.) If ShowWarningsExtensive is set and CheckNullCoordinates is not set, and if checkNewOriginOrPole returns an error, show this error as a warning
-		// 3.) If CheckNullCoordinates is set, and if checkNewOriginOrPole returns an error, set e (current behavior).
 		if e == nil && sp != nil &&
 			(feed.opts.CheckNullCoordinates || feed.opts.ShowWarningsExtensive) {
 			if coordErr := checkNearOriginOrPole(float64(sp.Lat), float64(sp.Lon), "Shape '"+shape.Id+"'"); coordErr != nil {
@@ -2422,7 +2415,7 @@ func (feed *Feed) warnLimited(code string, e error) {
 	if n < maxWarningsPerType {
 		feed.warn(e)
 	} else if n == maxWarningsPerType {
-		fmt.Fprintf(os.Stderr, "WARNING: further '%s' warnings suppressed (>= %d occurrences)\n", code, maxWarningsPerType)
+		feed.warn(fmt.Errorf("further '%s' warnings suppressed (>= %d occurrences)", code, maxWarningsPerType))
 	}
 	// n > maxWarningsPerType: silently counted but not printed
 }
@@ -2846,6 +2839,7 @@ func (feed *Feed) warnUnusedStations() {
 		}
 	}
 }
+
 func (feed *Feed) warnUnusedShapesAndTripsAndStops() {
 	referencedShapes := make(map[string]struct{})
 	referencedStops := make(map[string]struct{})
