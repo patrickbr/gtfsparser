@@ -232,6 +232,10 @@ func NewFeed() *Feed {
 func (feed *Feed) SetParseOpts(opts ParseOptions) {
 	feed.opts = opts
 	feed.opts.ShowWarnings = feed.opts.ShowWarnings || feed.opts.ShowWarningsExtensive
+
+	// disable DryRun if ShowWarningsExtensive is enabled to avoid false
+	// positives
+	feed.opts.DryRun = feed.opts.DryRun && !feed.opts.ShowWarningsExtensive
 }
 
 // Parse the GTFS data in the specified folder into the feed
