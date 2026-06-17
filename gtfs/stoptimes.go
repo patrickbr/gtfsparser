@@ -27,7 +27,7 @@ type StopTimes []StopTime
 
 // Time is a simple GTFS time type
 type Time struct {
-	Hour   int8
+	Hour   int16
 	Minute int8
 	Second int8
 }
