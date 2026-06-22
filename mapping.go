@@ -2034,7 +2034,7 @@ func getTime(id int, r []string, fldName string) gtfs.Time {
 	}
 
 	if id >= len(r) || len(r[id]) == 0 {
-		return gtfs.Time{Second: int8(-1), Minute: int8(-1), Hour: int8(-1)}
+		return gtfs.Time{Second: int8(-1), Minute: int8(-1), Hour: int16(-1)}
 	}
 
 	// Use strings.Cut here as this function is very hot due to being called from createStopTimes, and splitting would allocate.
@@ -2075,11 +2075,11 @@ func getTime(id int, r []string, fldName string) gtfs.Time {
 		goto fail
 	}
 
-	if hour > 127 {
-		panic(fmt.Errorf("Max representable time is '127:59:59', found '%s' for field %s", errFldPrep(r[id]), fldName))
+	if hour > 32767 {
+		panic(fmt.Errorf("Max representable time is '32767:59:59', found '%s' for field %s", errFldPrep(r[id]), fldName))
 	}
 
-	return gtfs.Time{Hour: int8(hour), Minute: int8(minute), Second: int8(second)}
+	return gtfs.Time{Hour: int16(hour), Minute: int8(minute), Second: int8(second)}
 
 fail:
 	panic(fmt.Errorf("Expected HH:MM:SS time for field '%s', found '%s' (%s)", fldName, errFldPrep(r[id]), e.Error()))
