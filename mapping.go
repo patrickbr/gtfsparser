@@ -1399,7 +1399,7 @@ func reserveShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) 
 	return nil
 }
 
-func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (s *gtfs.Shape, sp *gtfs.ShapePoint, err error) {
+func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (s *gtfs.Shape, sp gtfs.ShapePoint, added bool, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
@@ -1446,7 +1446,7 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 	}
 
 	if !contains {
-		return shape, nil, nil
+		return shape, gtfs.ShapePoint{}, false, nil
 	}
 
 	p := gtfs.ShapePoint{
@@ -1458,7 +1458,7 @@ func createShapePoint(r []string, flds ShapeFields, feed *Feed, prefix string) (
 
 	shape.Points = append(shape.Points, p)
 
-	return shape, &p, nil
+	return shape, p, true, nil
 }
 
 func createFareAttribute(r []string, flds FareAttributeFields, feed *Feed, prefix string) (fa *gtfs.FareAttribute, err error) {
