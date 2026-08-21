@@ -1248,15 +1248,11 @@ func createStopTime(r []string, flds *StopTimeFields, feed *Feed, prefix string)
 		panic(errors.New("Departure before arrival at stop " + getString(flds.stopId, r, flds.FldName(flds.stopId), true, true, "") + "."))
 	}
 
-	a.SetSequence(getRangeInt(flds.stopSequence, r, flds.FldName(flds.stopSequence), true, 0, int(^uint32(0)>>1)))
+	a.SetSequence(getRangeInt(flds.stopSequence, r, flds.FldName(flds.stopSequence), true, 0, gtfs.MaxStopSequence))
 
 	if flds.stopHeadsign >= 0 && flds.stopHeadsign < len(r) && len(r[flds.stopHeadsign]) > 0 && r[flds.stopHeadsign] != *trip.Headsign {
 		// only store headsigns that are different to the default trip headsign
-		if *feed.lastString != r[flds.stopHeadsign] {
-			tmp := r[flds.stopHeadsign]
-			feed.lastString = &tmp
-		}
-		a.SetHeadsign(feed.lastString)
+		a.SetHeadsign(feed.internString(r[flds.stopHeadsign]))
 	}
 
 	a.SetPickup_type(uint8(getRangeInt(flds.pickupType, r, flds.FldName(flds.pickupType), false, 0, 3)))
@@ -1320,23 +1316,16 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 
 	headsign := getString(flds.tripHeadsign, r, flds.FldName(flds.tripHeadsign), false, false, "")
 
-	a.Headsign = &feed.emptyString
-
-	if len(headsign) > 0 {
-		if *feed.lastString != headsign {
-			feed.lastString = &headsign
-		}
-		a.Headsign = feed.lastString
-	}
+	a.Headsign = feed.internString(headsign)
 
 	shortName := getString(flds.tripShortName, r, flds.FldName(flds.tripShortName), false, false, "")
 	if len(shortName) > 0 {
-		a.Short_name = &shortName
+		a.Short_name = feed.internString(shortName)
 	}
 	a.Direction_id = int8(getRangeIntWithDefault(flds.directionId, r, flds.FldName(flds.directionId), 0, 1, -1, feed.opts.UseDefValueOnError, feed))
 	blockid := prefix + getString(flds.blockId, r, flds.FldName(flds.blockId), false, false, "")
 	if len(blockid) != len(prefix) {
-		a.Block_id = &blockid
+		a.Block_id = feed.internString(blockid)
 	}
 
 	if !feed.opts.DropShapes {

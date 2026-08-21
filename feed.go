@@ -179,7 +179,7 @@ type Feed struct {
 	zipFileCloser *zip.ReadCloser
 	curFileHandle *os.File
 
-	lastString  *string
+	strIntern   map[string]*string
 	emptyString string
 
 	fastParsePossible bool
@@ -223,7 +223,7 @@ func NewFeed() *Feed {
 		fastParsePossible:     true,
 		opts:                  ParseOptions{false, false, false, false, "", false, false, false, false, false, gtfs.Date{}, gtfs.Date{}, make([]Polygon, 0), false, make(map[int16]bool, 0), make(map[int16]bool, 0), false, false, false, false},
 	}
-	g.lastString = &g.emptyString
+	g.strIntern = make(map[string]*string)
 
 	return &g
 }
@@ -383,7 +383,31 @@ func (feed *Feed) PrefixParse(path string, prefix string) error {
 		feed.warnBlockTrips()
 	}
 
+	// the interning table is only needed while parsing
+	feed.strIntern = make(map[string]*string)
+
 	return e
+}
+
+const maxInternedStrings = 1 << 20
+
+func (feed *Feed) internString(s string) *string {
+	if len(s) == 0 {
+		return &feed.emptyString
+	}
+
+	if p, ok := feed.strIntern[s]; ok {
+		return p
+	}
+
+	c := strings.Clone(s)
+	p := &c
+
+	if len(feed.strIntern) < maxInternedStrings {
+		feed.strIntern[c] = p
+	}
+
+	return p
 }
 
 func (feed *Feed) filterServices(prefix string) {

@@ -11,15 +11,30 @@ import (
 	"time"
 )
 
+const MaxStopSequence = (1 << 23) - 1
+
+const (
+	seqMask   = uint32(1<<23) - 1 // stop_sequence
+	noTpBit   = uint32(1) << 23   // set if NOT a timepoint
+	pudoShift = 24                // PU/DO
+)
+
 // A StopTime is a single stop with times on a trip
 type StopTime struct {
 	arrival_time        Time
 	departure_time      Time
-	pudo                uint8
+	seqpudo             uint32
+	shape_dist_traveled float32
 	stop                *Stop
 	headsign            *string
-	sequence            int32
-	shape_dist_traveled float32
+}
+
+func (st *StopTime) pudo() uint8 {
+	return uint8(st.seqpudo >> pudoShift)
+}
+
+func (st *StopTime) setPudo(v uint8) {
+	st.seqpudo = (st.seqpudo & ^(uint32(0xff) << pudoShift)) | (uint32(v) << pudoShift)
 }
 
 // StopTimes group multiple StopTime objects
@@ -57,22 +72,12 @@ func (st *StopTime) SetStop(s *Stop) {
 }
 
 func (st *StopTime) Sequence() int {
-	if st.sequence == 0 {
-		return 1
-	}
-	if st.sequence < 0 {
-		return int(-(st.sequence + 1))
-	} else {
-		return int(st.sequence - 1)
-	}
+	return int(st.seqpudo & seqMask)
 }
 
+// SetSequence sets the stop_sequence. seq must be in [0, MaxStopSequence].
 func (st *StopTime) SetSequence(seq int) {
-	if st.sequence < 0 {
-		st.sequence = int32(-seq - 1)
-	} else {
-		st.sequence = int32(seq + 1)
-	}
+	st.seqpudo = (st.seqpudo & ^seqMask) | (uint32(seq) & seqMask)
 }
 
 func (st *StopTime) Headsign() *string {
@@ -84,35 +89,35 @@ func (st *StopTime) SetHeadsign(hs *string) {
 }
 
 func (st *StopTime) Pickup_type() uint8 {
-	return (st.pudo & uint8(3))
+	return (st.pudo() & uint8(3))
 }
 
 func (st *StopTime) SetPickup_type(put uint8) {
-	st.pudo |= put
+	st.setPudo(st.pudo() | put)
 }
 
 func (st *StopTime) Drop_off_type() uint8 {
-	return ((st.pudo & (uint8(3) << 2)) >> 2)
+	return ((st.pudo() & (uint8(3) << 2)) >> 2)
 }
 
 func (st *StopTime) SetDrop_off_type(dot uint8) {
-	st.pudo |= (dot << 2)
+	st.setPudo(st.pudo() | (dot << 2))
 }
 
 func (st *StopTime) Continuous_pickup() uint8 {
-	return ((st.pudo & (uint8(3) << 4)) >> 4)
+	return ((st.pudo() & (uint8(3) << 4)) >> 4)
 }
 
 func (st *StopTime) SetContinuous_pickup(cp uint8) {
-	st.pudo |= (cp << 4)
+	st.setPudo(st.pudo() | (cp << 4))
 }
 
 func (st *StopTime) Continuous_drop_off() uint8 {
-	return ((st.pudo & (uint8(3) << 6)) >> 6)
+	return ((st.pudo() & (uint8(3) << 6)) >> 6)
 }
 
 func (st *StopTime) SetContinuous_drop_off(cdo uint8) {
-	st.pudo |= cdo << 6
+	st.setPudo(st.pudo() | (cdo << 6))
 }
 
 func (st *StopTime) Shape_dist_traveled() float32 {
@@ -124,17 +129,14 @@ func (st *StopTime) SetShape_dist_traveled(d float32) {
 }
 
 func (st *StopTime) Timepoint() bool {
-	return !(st.sequence < 0)
+	return st.seqpudo&noTpBit == 0
 }
 
 func (st *StopTime) SetTimepoint(tp bool) {
-	if st.sequence == 0 {
-		st.sequence = 1
-	}
-	if tp && st.sequence < 0 {
-		st.sequence = -st.sequence
-	} else if !tp && !(st.sequence < 0) {
-		st.sequence = -st.sequence
+	if tp {
+		st.seqpudo &= ^noTpBit
+	} else {
+		st.seqpudo |= noTpBit
 	}
 }
 

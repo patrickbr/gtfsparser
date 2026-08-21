@@ -48,15 +48,10 @@ func NewCsvParser(file io.Reader, silentfail bool, assumeclean bool) CsvParser {
 
 	if p.assumeclean {
 		p.scanner = bufio.NewScanner(file)
-		p.record = make([]string, 999)
 	}
 
 	p.parseHeader()
 	p.silentfail = silentfail
-
-	if p.assumeclean {
-		p.record = make([]string, len(p.header))
-	}
 
 	return p
 }
@@ -103,7 +98,7 @@ func (p *CsvParser) ParseCsvLine() []string {
 			}
 		}
 
-		return strings.Split(p.scanner.Text(), ",")
+		return p.splitClean(p.scanner.Text())
 	}
 
 	record, err := p.reader.Read()
@@ -143,6 +138,25 @@ func (p *CsvParser) ParseCsvLine() []string {
 	}
 
 	return record
+}
+
+func (p *CsvParser) splitClean(line string) []string {
+	// assumes "clean" CSV which can be parse by simple splitting
+	n := strings.Count(line, ",") + 1
+
+	if cap(p.record) < n {
+		p.record = make([]string, n)
+	}
+	rec := p.record[:n]
+
+	for i := 0; i < n-1; i++ {
+		j := strings.IndexByte(line, ',')
+		rec[i] = line[:j]
+		line = line[j+1:]
+	}
+	rec[n-1] = line
+
+	return rec
 }
 
 func (p *CsvParser) parseHeader() {
