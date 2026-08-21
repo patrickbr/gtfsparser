@@ -1252,7 +1252,7 @@ func createStopTime(r []string, flds *StopTimeFields, feed *Feed, prefix string)
 
 	if flds.stopHeadsign >= 0 && flds.stopHeadsign < len(r) && len(r[flds.stopHeadsign]) > 0 && r[flds.stopHeadsign] != *trip.Headsign {
 		// only store headsigns that are different to the default trip headsign
-		a.SetHeadsign(feed.internString(r[flds.stopHeadsign]))
+		a.SetHeadsign(feed.internString(internStopHeadsign, r[flds.stopHeadsign]))
 	}
 
 	a.SetPickup_type(uint8(getRangeInt(flds.pickupType, r, flds.FldName(flds.pickupType), false, 0, 3)))
@@ -1316,16 +1316,16 @@ func createTrip(r []string, flds TripFields, feed *Feed, prefix string) (t *gtfs
 
 	headsign := getString(flds.tripHeadsign, r, flds.FldName(flds.tripHeadsign), false, false, "")
 
-	a.Headsign = feed.internString(headsign)
+	a.Headsign = feed.internString(internTripHeadsign, headsign)
 
 	shortName := getString(flds.tripShortName, r, flds.FldName(flds.tripShortName), false, false, "")
 	if len(shortName) > 0 {
-		a.Short_name = feed.internString(shortName)
+		a.Short_name = feed.internString(internTripShortName, shortName)
 	}
 	a.Direction_id = int8(getRangeIntWithDefault(flds.directionId, r, flds.FldName(flds.directionId), 0, 1, -1, feed.opts.UseDefValueOnError, feed))
 	blockid := prefix + getString(flds.blockId, r, flds.FldName(flds.blockId), false, false, "")
 	if len(blockid) != len(prefix) {
-		a.Block_id = feed.internString(blockid)
+		a.Block_id = feed.internString(internTripBlockId, blockid)
 	}
 
 	if !feed.opts.DropShapes {
